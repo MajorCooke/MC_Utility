@@ -1,0 +1,9 @@
+
+// Merely for version's sake. 
+noarchive server cheat float MC_Version = 1.0;
+
+// 		Keyconf Buster
+// - Enabled: will make weapon selection based off of Weapon.SlotNumber and 
+// Weapon.SlotPriority.
+// - Disabled: Original GZDoom behavior.
+user bool MC_KeyconfWeaponBuster = true;

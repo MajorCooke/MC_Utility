@@ -1,0 +1,181 @@
+#include "ZScript/MC/WeaponSwitch.txt"
+#include "ZScript/MC/Constants.txt"
+
+Class MCHandler : EventHandler
+{
+	enum EArray
+	{
+		AllocSize = 100,
+		
+		AMonsters = 0,
+		ADeadMonsters,
+		AMissiles,
+		AItems
+	};
+	Array<Actor> Monsters, DeadMonsters, Missiles;
+	Array<Inventory> Items;
+	private Array<QueuedWeapon> Queue;
+	private MCWeaponList WeaponList;
+	private bool InGame;
+	
+	//--------------------------------------------------------------------------
+	// Overrides
+	//--------------------------------------------------------------------------
+	
+	override void OnRegister()
+	{
+		SetOrder(5000); // Plenty of room to go above and below.
+		Queue.Clear();
+		if (!WeaponList)
+		{
+			WeaponList = new('MCWeaponList');
+			WeaponList.Init();
+		}
+		Super.OnRegister();
+	}
+	
+	override void WorldLoaded(WorldEvent e)
+	{
+	}
+	
+	override void WorldUnloaded(WorldEvent e)
+	{
+		Monsters.Clear();
+		DeadMonsters.Clear();
+		Missiles.Clear();
+	}
+	
+	override void WorldThingSpawned(WorldEvent e)
+	{
+		
+	}
+	
+	override void WorldThingDied(WorldEvent e)
+	{
+	}
+	
+	override void WorldThingDestroyed(WorldEvent e)
+	{
+	}
+	
+	override void WorldTick()
+	{
+		TickWeaponTags();
+	}
+	
+	override void NetworkProcess(ConsoleEvent e)
+	{
+		int num = e.Player;
+		let plr = players[num].mo;
+		if (!plr)	return;
+		
+		if (e.Name == 'PrintMusic')
+		{
+			Console.Printf("Music: %s", musplaying.name);			
+		}
+		else
+		{
+			Array<String> strings;
+			e.Name.Split (strings, ":");
+			
+			if (strings.Size() > 1)
+			{
+				if (strings[0] == 'MC_SelectWeapon')
+				{
+					Weapon next = ChangeWeapons(e);
+					if (next) 
+					{
+						QueuedWeapon tosend = QueuedWeapon.Create(next);
+						QueueWeapon(tosend);
+					}
+				}
+			}
+		}
+		/*
+		
+		Array<String> strings;
+		e.Name.Split (strings, ":");
+		
+		if (strings.Size() > 1)
+		{
+			if (strings[0] == 'MC_SelectWeapon')
+			{
+				Weapon next = ChangeWeapons(e);
+				if (next) 
+				{
+					QueuedWeapon tosend = QueuedWeapon.Create(next);
+					QueueWeapon(tosend);
+				}
+			}
+		}
+		*/
+	}
+	
+	// Tremendous thanks to Phantombeta for helping me out with this.
+	override bool InputProcess(InputEvent ev)
+	{
+		if (ev.Type == InputEvent.Type_KeyDown)
+		{
+			int index = consoleplayer;
+			PlayerInfo player = players[index];
+			let plr = player.mo;
+			if (!plr || plr.health < 1 || plr.FindInventory("PowerMorph",true))
+				return false;
+			
+			if (player)
+			{
+				let cv = CVar.GetCVar('MC_KeyconfWeaponBuster', player);
+				if (!cv || !cv.GetInt())
+					return false;
+			}
+			else return false;
+			
+			static const String KeyBindsCCMDs [] = {
+				"slot 1", "slot 2", "slot 3", "slot 4", "slot 5",
+				"slot 6", "slot 7", "slot 8", "slot 9", "slot 0",
+				"weapnext", "weapprev"	};
+			static const String KeyBindsNetEvents [] = {
+				"slot:1", "slot:2", "slot:3", "slot:4", "slot:5",
+				"slot:6", "slot:7", "slot:8", "slot:9", "slot:0",
+				"next", "prev"	};
+			
+			// Find the key and translate it from the raw command to an 
+			// event-friendly string. Makes splitting it easier.
+			int bind1, bind2;
+			for (int i = 0; i < KeyBindsCCMDs.Size(); i++) 
+			{
+				// Bindings is a global struct. Definition in menu.txt inside GZDoom.pk3.
+				// Get the keys that are bound to this action.
+				[bind1, bind2] = Bindings.GetKeysForCommand (KeyBindsCCMDs [i]);
+				
+				if (ev.KeyScan == bind1 || ev.KeyScan == bind2) 
+				{
+					//Console.Printf("%s", KeyBindsNetEvents[i]);
+					EventHandler.SendNetworkEvent(String.Format("MC_SelectWeapon:%s", KeyBindsNetEvents[i]));
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+	
+	override void PostUiTick()
+	{
+		PrintWeaponTags();
+	}
+	
+	//--------------------------------------------------------------------------
+	// Custom functions
+	//--------------------------------------------------------------------------
+	static MCHandler Fetch()
+	{
+		return MCHandler(Find("MCHandler"));
+	}
+	
+	static play void QueueWeapon( QueuedWeapon tosend )
+	{
+		MCHandler local = MCHandler.Fetch();
+		if ( !local ) return;
+		local.Queue.Push(tosend);
+	}
+}

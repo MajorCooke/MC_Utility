@@ -1,0 +1,24 @@
+// Copyright (c) 2018 Benjamin Moir. All rights reserved.
+// This work is licensed under the terms of the MIT license.  
+// To obtain a copy, visit <https://opensource.org/licenses/MIT>.
+
+struct TypeUtility
+{
+    static clearscope bool ClassExists(string className)
+    {
+        class type = className;
+        return type != null;
+    }
+
+    static clearscope bool IsSubclass(string className, string parentName)
+    {
+        class parent = parentName;
+        class type   = className;
+        return (parent && type) ? type is parent : false;
+    }
+
+    static clearscope bool ObjectIs(Object o, string className)
+    {
+        return ClassExists(className) ? o is className : false;
+    }
+}

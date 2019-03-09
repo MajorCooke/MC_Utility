@@ -1,0 +1,18 @@
+// Copyright (c) 2018 Benjamin Moir. All rights reserved.
+// This work is licensed under the terms of the MIT license.  
+// To obtain a copy, visit <https://opensource.org/licenses/MIT>.
+
+class IHashable : Interface
+{
+    static IHashable, bool GetImpl(class<Object> implementor)
+    {
+        Interface i; bool b;
+        [i, b] = Interface.GetImpl("IHashable", implementor);
+        return IHashable(i), b;
+    }
+
+    virtual uint GetHash(Object this)
+    {
+        return StringUtility.GetHash(string.Format("%p", this));
+    }
+}

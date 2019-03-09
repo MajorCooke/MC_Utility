@@ -1,0 +1,64 @@
+// Copyright (c) 2018 Benjamin Moir. All rights reserved.
+// This work is licensed under the terms of the MIT license.  
+// To obtain a copy, visit <https://opensource.org/licenses/MIT>.
+
+class STEP_Handler : EventHandler
+{
+    private int m_Timer[MAXPLAYERS];
+    private transient STEP_Static m_Static;
+
+    override void OnRegister()
+    {
+        m_Static = STEP_Static(Find("STEP_Static"));
+    }
+
+    private bool CheckActorFloor(Actor mo)
+    {
+        if(abs(mo.pos.z - mo.GetZAt()) <= 1)
+            return true;
+
+        bool ok; Actor below;
+        [ok, below] = mo.TestMobjZ(true);
+
+        if(below) return true;
+
+        return false;
+    }
+
+    private bool PlayerIsMoving(int pn)
+    {
+        UserCmd cmd = players[pn].cmd;
+        return  cmd.forwardMove || cmd.sideMove;
+    }
+
+    override void WorldTick()
+    {
+        for(int pn = 0; pn < MAXPLAYERS; pn++)
+        {
+            if(!playerInGame[pn]) continue;
+
+            PlayerInfo player = players[pn];
+            PlayerPawn mo     = player.mo;
+            double speed      = mo.vel.xy.Length();
+            double volume     = speed / (15 * mo.speed * mo.forwardMove1);
+
+            if(speed <= 0) continue;
+
+            if(m_Timer[pn] <= 0 && PlayerIsMoving(pn))
+               m_Timer[pn] = max(5, 25 - speed);
+
+            if(!CheckActorFloor(mo)) continue;
+
+            if(m_Timer[pn] > 0 && --m_Timer[pn] <= 0)
+            {
+                let snd = Sound("step/default");
+                int tex = int(mo.floorPic);
+
+                if(tex < m_Static.stepSounds.Size())
+                   snd = m_Static.stepSounds[tex];
+
+                player.mo.A_PlaySound(snd, CHAN_AUTO, volume);
+            }
+        }
+    }
+}

@@ -1,0 +1,40 @@
+// Copyright (c) 2018 Benjamin Moir. All rights reserved.
+// This work is licensed under the terms of the MIT license.  
+// To obtain a copy, visit <https://opensource.org/licenses/MIT>.
+
+struct BitConverter
+{
+    static int ToInt16(int a, int b)
+    {
+        return a | (b << 8);
+    }
+
+    static int ToInt32(int a, int b, int c, int d)
+    {
+        return a | (b << 8) | (c << 16) | (d << 24);
+    }
+
+    static double ToFloat32(int a, int b, int c, int d)
+    {
+        uint n = ToInt32(a, b, c, d);
+
+        uint fraction = (n >>  0) & ((1 << 23) - 1);
+        uint exponent = (n >> 23) & ((1 <<  8) - 1);
+        uint sign     = (n >> 31) & ((1 <<  1) - 1);
+
+        double frac = fraction != 0
+            ? 1 + fraction * (2 ** -23)
+            : 0;
+
+        return (sign ? -1 : 1) * frac * (2 ** (exponent - 127));
+    }
+
+    static int, int, int, int GetBytesInt32(int value)
+    {
+        return
+            (value >>  0) & 0xff,
+            (value >>  8) & 0xff,
+            (value >> 16) & 0xff,
+            (value >> 24) & 0xff;
+    }
+}

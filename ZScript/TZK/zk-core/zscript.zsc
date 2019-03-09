@@ -1,0 +1,30 @@
+// Copyright (c) 2018 Benjamin Moir. All rights reserved.
+// This work is licensed under the terms of the MIT license.  
+// To obtain a copy, visit <https://opensource.org/licenses/MIT>.
+
+#include "ZScript/TZK/zk-core/interface.zsc"
+#include "ZScript/TZK/zk-core/interfaces/ihashable.zsc"
+#include "ZScript/TZK/zk-core/interfaces/icomparable.zsc"
+#include "ZScript/TZK/zk-core/interfaces/iequatable.zsc"
+
+#include "ZScript/TZK/zk-core/type_utility.zsc"
+#include "ZScript/TZK/zk-core/string_utility.zsc"
+
+#include "ZScript/TZK/zk-core/stream_base.zsc"
+#include "ZScript/TZK/zk-core/stream_lump.zsc"
+#include "ZScript/TZK/zk-core/stream_string.zsc"
+
+#include "ZScript/TZK/zk-core/bit_converter.zsc"
+#include "ZScript/TZK/zk-core/reader_binary.zsc"
+
+#include "ZScript/TZK/zk-core/ascii.zsc"
+#include "ZScript/TZK/zk-core/token.zsc"
+#include "ZScript/TZK/zk-core/tokenizer.zsc"
+
+#include "ZScript/TZK/zk-core/render_style.zsc"
+#include "ZScript/TZK/zk-core/callback.zsc"
+#include "ZScript/TZK/zk-core/timer.zsc"
+
+#include "ZScript/TZK/zk-core/ref_array.zsc"
+#include "ZScript/TZK/zk-core/ref_primitives.zsc"
+#include "ZScript/TZK/zk-core/dictionary.zsc"

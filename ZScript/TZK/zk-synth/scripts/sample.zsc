@@ -1,0 +1,61 @@
+// Copyright (c) 2018 Benjamin Moir. All rights reserved.
+// This work is licensed under the terms of the MIT license.  
+// To obtain a copy, visit <https://opensource.org/licenses/MIT>.
+
+// Sample synthfire weapon, dual wielding pistol + fists
+
+class SynthSample : SynthfireWeapon
+{
+    action void A_FirePistolSynth()
+    {
+        A_FireBullets(5.6, 0, 1, 5, "BulletPuff");
+        A_PlaySound("weapons/pistol", CHAN_WEAPON);
+        A_SynthGunFlash();
+    }
+
+    states
+    {
+    Ready.Synth:
+        PISG A 1 offset(-64, 0) A_SynthWeaponReady;
+        loop;
+    Deselect.Synth:
+        PISG A 1 offset(-64, 0) A_SynthLower;
+        loop;
+    Select.Synth:
+        PISG A 1 offset(-64, 0) A_SynthRaise;
+        loop;
+    Fire.Synth:
+        PISG A 4 offset(-64, 0);
+        PISG B 6 offset(-64, 0) A_FirePistolSynth;
+        PISG C 4 offset(-64, 0);
+        PISG B 5 offset(-64, 0) A_SynthReFire;
+        goto Ready.Synth;
+    Flash.Synth:
+        PISF A 7 offset(-64, 0) bright A_Light1;
+        goto LightDone;
+        PISF A 7 offset(-64, 0) bright A_Light1;
+        goto LightDone;
+
+    Ready:
+        PUNG A 1 A_WeaponReady(WRF_NOPRIMARY);
+        loop;
+    Deselect:
+        PUNG A 1 A_Lower;
+        loop;
+    Select:
+        PUNG A 1 A_Raise;
+        loop;
+    Fire:
+    AltFire:
+        TNT1 A 0 A_OverlayFlags(PSP_WEAPON, PSPF_FLIP, true);
+        TNT1 A 0 A_OverlayFlags(PSP_WEAPON, PSPF_MIRROR, true);
+        PUNG B 4;
+        PUNG C 4 A_Punch;
+        PUNG D 5;
+        PUNG C 4;
+        PUNG B 5 A_ReFire;
+        TNT1 A 0 A_OverlayFlags(PSP_WEAPON, PSPF_MIRROR, false);
+        TNT1 A 0 A_OverlayFlags(PSP_WEAPON, PSPF_FLIP, false);
+        goto Ready;
+    }
+}

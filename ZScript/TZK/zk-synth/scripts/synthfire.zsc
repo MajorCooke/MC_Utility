@@ -1,0 +1,188 @@
+// Copyright (c) 2018 Benjamin Moir. All rights reserved.
+// This work is licensed under the terms of the MIT license.  
+// To obtain a copy, visit <https://opensource.org/licenses/MIT>.
+
+class SynthfireWeapon : Weapon
+{
+    enum PSpriteLayers
+    {
+        PSP_SYNTH_BASE = -1000,
+        PSP_SYNTH_WEAPON,
+        PSP_SYNTH_FLASH
+    }
+
+    // If you make use of GetUpState/GetDownState,
+    // then you should ensure your code checks for
+    // classes deriving from SynthfireWeapon and
+    // uses GetSelectState/GetDeselectState instead.
+    virtual State GetSelectState()
+    {
+        return super.GetUpState();
+    }
+
+    virtual State GetDeselectState()
+    {
+        return super.GetDownState();
+    }
+
+    action void A_SynthWeaponReady(int flags = 0)
+    {
+        State st = null;
+        let btns = player.buttons;
+        let weap = player.readyWeapon;
+
+        if (!weap) return;
+
+        let fireState    = weap.FindState("Fire.Synth",    true);
+        let altFireState = weap.FindState("AltFire.Synth", true);
+        let reloadState  = weap.FindState("Reload.Synth",  true);
+        let zoomState    = weap.FindState("Zoom.Synth",    true);
+        let userState1   = weap.FindState("User1.Synth",   true);
+        let userState2   = weap.FindState("User2.Synth",   true);
+        let userState3   = weap.FindState("User3.Synth",   true);
+        let userState4   = weap.FindState("User4.Synth",   true);
+
+        if (!(flags & WRF_NOPRIMARY)   && (btns & BT_ATTACK)    && fireState)    st = fireState;
+        if (!(flags & WRF_NOSECONDARY) && (btns & BT_ALTATTACK) && altFireState) st = altFireState;
+        if ( (flags & WRF_ALLOWRELOAD) && (btns & BT_RELOAD)    && reloadState)  st = reloadState;
+        if ( (flags & WRF_ALLOWZOOM)   && (btns & BT_ZOOM)      && zoomState)    st = zoomState;
+        if ( (flags & WRF_ALLOWUSER1)  && (btns & BT_USER1)     && userState1)   st = userState1;
+        if ( (flags & WRF_ALLOWUSER2)  && (btns & BT_USER2)     && userState2)   st = userState2;
+        if ( (flags & WRF_ALLOWUSER3)  && (btns & BT_USER3)     && userState3)   st = userState3;
+        if ( (flags & WRF_ALLOWUSER4)  && (btns & BT_USER4)     && userState4)   st = userState4;
+
+        if (st) player.SetPSprite(PSP_SYNTH_WEAPON, st);
+    }
+
+    action void A_SynthReFire(StateLabel label = null)
+    {
+        State st = label ? ResolveState(label) : null;
+        let pspr = player.FindPSprite(PSP_SYNTH_WEAPON);
+        let weap = player.readyWeapon;
+
+        if (!weap || !pspr) return;
+
+        if (InStateSequence(pspr.curState, weap.FindState("AltFire.Synth", true)))
+        {
+            if (player.buttons & BT_ALTATTACK)
+            {
+                if (!st) st = weap.FindState("AltHold.Synth", true);
+                if (!st) st = weap.FindState("AltFire.Synth", true);
+            }
+        }
+        else
+        {
+            if (player.buttons & BT_ATTACK)
+            {
+                if (!st) st = weap.FindState("Hold.Synth", true);
+                if (!st) st = weap.FindState("Fire.Synth", true);
+            }
+        }
+
+        if (st) player.SetPSprite(PSP_SYNTH_WEAPON, st);
+    }
+
+    // ZScript currently offers no virtual methods for
+    // selection and deselection events on weapons, so
+    // instead, the states get overridden.
+    override State GetUpState()
+    {
+        return FindState("_OnSelect");
+    }
+
+    override State GetDownState()
+    {
+        return FindState("_OnDeselect");
+    }
+
+    // Must be used in a Select.Synth state, as it
+    // handles the transition into Ready.Synth.
+    action void A_SynthRaise()
+    {
+        if (!player) return;
+        if (!player.readyWeapon) return;
+        if (player.pendingWeapon != WP_NOCHANGE) return;
+
+        let weap = player.readyWeapon;
+        let psp  = player.GetPSprite(PSP_WEAPON);
+        if (psp.y > WEAPONTOP) return;
+
+        let st = weap.FindState("Ready.Synth", true);
+        player.SetPSprite(PSP_SYNTH_WEAPON, st);
+    }
+
+    // Must be used in a Deselect.Synth state, as it ensures
+    // the synth weapon does not remain onscreen after death.
+    private bool m_Lowering;
+
+    // Refer to the Tick() override for more.
+    action void A_SynthLower()
+    {
+        invoker.m_Lowering = true;
+    }
+
+    action void A_SynthGunFlash(StateLabel flashLabel = null, int flags = 0)
+    {
+        if (!player) return;
+
+        let pspr = player.GetPSprite(PSP_SYNTH_WEAPON);
+        let weap = player.readyWeapon;
+        State st = null;
+
+        if (!weap || !pspr) return;
+
+        if (!flashLabel)
+        {
+            if (InStateSequence(pspr.curState, weap.FindState("AltFire.Synth", true)))
+                st = weap.FindState("AltFlash.Synth", true);
+            else
+                st = weap.FindState("Flash.Synth", true);
+        }
+        else
+            st = weap.FindState(flashLabel);
+
+        player.SetPSprite(PSP_SYNTH_FLASH, st);
+    }
+
+    override void Tick()
+    {
+        super.Tick();
+
+        // The behaviour of A_SynthLower must be handled in Tick(),
+        // because otherwise the synth PSprites will be disabled late.
+
+        if (!m_Lowering) return;
+        else m_Lowering = false;
+        
+        // we don't need to do anything if the player is alive.
+        if (owner.player.playerState != PST_DEAD) return;
+
+        // When the player dies, and their weapon has finished lowering,
+        // the PSP_WEAPON PSprite loses its current state, which becomes
+        // null. Custom PSprites need to account for this, otherwise they
+        // will stick around onscreen when the player dies.
+        let weap = owner.player.GetPSprite(PSP_WEAPON);
+
+        if (weap && weap.curState == null)
+        {
+            owner.player.SetPSprite(PSP_SYNTH_WEAPON, null);
+            owner.player.SetPSprite(PSP_SYNTH_FLASH,  null);
+        }
+    }
+
+    states
+    {
+    _OnSelect:
+        TNT1 A 0 {
+            let st = player.readyWeapon.FindState("Select.Synth", true);
+            player.SetPSprite(PSP_SYNTH_WEAPON, st);
+            return invoker.GetSelectState();
+        }
+    _OnDeselect:
+        TNT1 A 0 {
+            let st = player.readyWeapon.FindState("Deselect.Synth", true);
+            player.SetPSprite(PSP_SYNTH_WEAPON, st);
+            return invoker.GetDeselectState();
+        }
+    }
+}

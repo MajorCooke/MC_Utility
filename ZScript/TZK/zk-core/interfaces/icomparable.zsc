@@ -1,0 +1,27 @@
+// Copyright (c) 2018 Benjamin Moir. All rights reserved.
+// This work is licensed under the terms of the MIT license.  
+// To obtain a copy, visit <https://opensource.org/licenses/MIT>.
+
+class IComparable : Interface
+{
+    static IComparable, bool GetImpl(class<Object> implementor)
+    {
+        Interface i; bool b;
+        [i, b] = Interface.GetImpl("IComparable", implementor);
+        return IComparable(i), b;
+    }
+
+    virtual ECompareResult Compare(Object this, Object other)
+    {
+        ThrowStubException(this.GetClassName(), "Compare");
+        return CMP_Invalid;
+    }
+}
+
+enum ECompareResult
+{
+    CMP_Equal   = 0,
+    CMP_Lesser  = 1,
+    CMP_Greater = -1,
+    CMP_Invalid = -2
+}

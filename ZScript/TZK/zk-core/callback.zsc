@@ -1,0 +1,60 @@
+// Copyright (c) 2018 Benjamin Moir. All rights reserved.
+// This work is licensed under the terms of the MIT license.  
+// To obtain a copy, visit <https://opensource.org/licenses/MIT>.
+
+class Callback abstract
+{
+    static play void Invoke(class<Callback> cbt, Object invoker, Object obj)
+    {
+        if(cbt is "PureCallback")
+        {
+            InvokePure(cbt, invoker, obj);
+            return;
+        }
+
+        let cb = PlayCallback(new(cbt));
+        cb.OnInvoke(invoker, obj);
+        cb.Destroy();
+    }
+
+    static clearscope void InvokePure(class<Callback> cbt, Object invoker, Object obj)
+    {
+        let cb = PureCallback(new(cbt));
+        cb.OnInvoke(invoker, obj);
+        cb.Destroy();
+    }
+
+    static ui void InvokeUi(class<Callback> cbt, Object invoker, Object obj)
+    {
+        if(cbt is "PureCallback")
+        {
+            InvokePure(cbt, invoker, obj);
+            return;
+        }
+
+        let cb = UiCallback(new(cbt));
+        cb.OnInvoke(invoker, obj);
+        cb.Destroy();
+    }
+}
+
+class PlayCallback : Callback abstract play
+{
+    play virtual void OnInvoke(Object invoker, Object obj)
+    {
+    }
+}
+
+class PureCallback : Callback abstract
+{
+    clearscope virtual void OnInvoke(Object invoker, Object obj)
+    {
+    }
+}
+
+class UiCallback : Callback abstract ui
+{
+    ui virtual void OnInvoke(Object invoker, Object obj)
+    {
+    }
+}

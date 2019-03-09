@@ -1,0 +1,53 @@
+// Copyright (c) 2018 Benjamin Moir. All rights reserved.
+// This work is licensed under the terms of the MIT license.  
+// To obtain a copy, visit <https://opensource.org/licenses/MIT>.
+
+class BinaryReader
+{
+    private Stream m_BaseStream;
+
+    static BinaryReader Create(Stream baseStream)
+    {
+        return CreateDerived("BinaryReader", baseStream);
+    }
+
+    static BinaryReader CreateDerived(class<BinaryReader> type, Stream baseStream)
+    {
+        let br = BinaryReader(new(type));
+        br.m_BaseStream = baseStream;
+        return br;
+    }
+
+    Stream GetBaseStream()
+    {
+        return m_BaseStream;
+    }
+
+    int ReadByte()
+    {
+        return m_BaseStream.ReadByte();
+    }
+
+    int ReadInt16()
+    {
+        return BitConverter.ToInt16(
+            ReadByte(), ReadByte()
+        );
+    }
+
+    int ReadInt32()
+    {
+        return BitConverter.ToInt32(
+            ReadByte(), ReadByte(),
+            ReadByte(), ReadByte()
+        );
+    }
+
+    double ReadFloat32()
+    {
+        return BitConverter.ToFloat32(
+            ReadByte(), ReadByte(),
+            ReadByte(), ReadByte()
+        );
+    }
+}

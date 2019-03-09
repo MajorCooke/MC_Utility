@@ -1,0 +1,26 @@
+// Copyright (c) 2018 Benjamin Moir. All rights reserved.
+// This work is licensed under the terms of the MIT license.  
+// To obtain a copy, visit <https://opensource.org/licenses/MIT>.
+
+class Interface abstract
+{
+    static Interface, bool GetImpl(class<Interface> type, class<Object> implementor)
+    {
+        while (true)
+        {
+            string implName       = implementor.GetClassName() .. "_Impl_" .. type.GetClassName();
+            class<Interface> impl = implName;
+
+                 if (impl) return Interface(new(impl)), false;
+            else if (implementor != "Object") implementor = implementor.GetParentClass();
+            else break;
+        }
+
+        return Interface(new(type)), true;
+    }
+
+    protected void ThrowStubException(Name implementor, Name method)
+    {
+        ThrowAbortException("%s called %s.%s stub", implementor, GetClassName(), method);
+    }
+}

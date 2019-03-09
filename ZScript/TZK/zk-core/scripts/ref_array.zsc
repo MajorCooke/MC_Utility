@@ -1,0 +1,163 @@
+// Copyright (c) 2018 Benjamin Moir. All rights reserved.
+// This work is licensed under the terms of the MIT license.  
+// To obtain a copy, visit <https://opensource.org/licenses/MIT>.
+
+class RefArray abstract
+{
+    virtual uint Size() { return 0; }
+    virtual bool Pop() { return false; }
+    virtual void Delete(uint index, int deleteCount = 1) {}
+    virtual void ShrinkToFit() {}
+    virtual void Grow(uint amount) {}
+    virtual void Resize(uint amount) {}
+    virtual void Reserve(uint amount) {}
+    virtual uint Max() { return 0; }
+    virtual void Clear() {}
+}
+
+class RefArrayI8 : RefArray
+{
+    Array<int8> values;
+
+    override uint Size() { return values.Size(); }
+    override bool Pop() { return values.Pop(); }
+    override void Delete(uint index, int deleteCount) { values.Delete(index, deleteCount); }
+    override void ShrinkToFit() { values.ShrinkToFit(); }
+    override void Grow(uint amount) { values.Grow(amount); }
+    override void Resize(uint amount) { values.Resize(amount); }
+    override void Reserve(uint amount) { values.Reserve(amount); }
+    override uint Max() { return values.Max(); }
+    override void Clear() { values.Clear(); }
+
+    void Copy(RefArrayI8 other) { values.Copy(other.values); }
+    void Move(RefArrayI8 other) { values.Move(other.values); }
+    uint Find(int item) { return values.Find(item); }
+    uint Push(int item) { return values.Push(item); }
+    void Insert(uint index, int item) { values.Insert(index, item); }
+}
+
+class RefArrayI16 : RefArray
+{
+    Array<int16> values;
+
+    override uint Size() { return values.Size(); }
+    override bool Pop() { return values.Pop(); }
+    override void Delete(uint index, int deleteCount) { values.Delete(index, deleteCount); }
+    override void ShrinkToFit() { values.ShrinkToFit(); }
+    override void Grow(uint amount) { values.Grow(amount); }
+    override void Resize(uint amount) { values.Resize(amount); }
+    override void Reserve(uint amount) { values.Reserve(amount); }
+    override uint Max() { return values.Max(); }
+    override void Clear() { values.Clear(); }
+
+    void Copy(RefArrayI16 other) { values.Copy(other.values); }
+    void Move(RefArrayI16 other) { values.Move(other.values); }
+    uint Find(int item) { return values.Find(item); }
+    uint Push(int item) { return values.Push(item); }
+    void Insert(uint index, int item) { values.Insert(index, item); }
+}
+
+class RefArrayI32 : RefArray
+{
+    Array<int> values;
+
+    override uint Size() { return values.Size(); }
+    override bool Pop() { return values.Pop(); }
+    override void Delete(uint index, int deleteCount) { values.Delete(index, deleteCount); }
+    override void ShrinkToFit() { values.ShrinkToFit(); }
+    override void Grow(uint amount) { values.Grow(amount); }
+    override void Resize(uint amount) { values.Resize(amount); }
+    override void Reserve(uint amount) { values.Reserve(amount); }
+    override uint Max() { return values.Max(); }
+    override void Clear() { values.Clear(); }
+
+    void Copy(RefArrayI32 other) { values.Copy(other.values); }
+    void Move(RefArrayI32 other) { values.Move(other.values); }
+    uint Find(int item) { return values.Find(item); }
+    uint Push(int item) { return values.Push(item); }
+    void Insert(uint index, int item) { values.Insert(index, item); }
+}
+
+class RefArrayF32 : RefArray
+{
+    Array<float> values;
+
+    override uint Size() { return values.Size(); }
+    override bool Pop() { return values.Pop(); }
+    override void Delete(uint index, int deleteCount) { values.Delete(index, deleteCount); }
+    override void ShrinkToFit() { values.ShrinkToFit(); }
+    override void Grow(uint amount) { values.Grow(amount); }
+    override void Resize(uint amount) { values.Resize(amount); }
+    override void Reserve(uint amount) { values.Reserve(amount); }
+    override uint Max() { return values.Max(); }
+    override void Clear() { values.Clear(); }
+
+    void Copy(RefArrayF32 other) { values.Copy(other.values); }
+    void Move(RefArrayF32 other) { values.Move(other.values); }
+    uint Find(double item) { return values.Find(item); }
+    uint Push(double item) { return values.Push(item); }
+    void Insert(uint index, double item) { values.Insert(index, item); }
+}
+
+class RefArrayF64 : RefArray
+{
+    Array<double> values;
+
+    override uint Size() { return values.Size(); }
+    override bool Pop() { return values.Pop(); }
+    override void Delete(uint index, int deleteCount) { values.Delete(index, deleteCount); }
+    override void ShrinkToFit() { values.ShrinkToFit(); }
+    override void Grow(uint amount) { values.Grow(amount); }
+    override void Resize(uint amount) { values.Resize(amount); }
+    override void Reserve(uint amount) { values.Reserve(amount); }
+    override uint Max() { return values.Max(); }
+    override void Clear() { values.Clear(); }
+
+    void Copy(RefArrayF64 other) { values.Copy(other.values); }
+    void Move(RefArrayF64 other) { values.Move(other.values); }
+    uint Find(double item) { return values.Find(item); }
+    uint Push(double item) { return values.Push(item); }
+    void Insert(uint index, double item) { values.Insert(index, item); }
+}
+
+class RefArrayStr : RefArray
+{
+    Array<string> values;
+
+    override uint Size() { return values.Size(); }
+    override bool Pop() { return values.Pop(); }
+    override void Delete(uint index, int deleteCount) { values.Delete(index, deleteCount); }
+    override void ShrinkToFit() { values.ShrinkToFit(); }
+    override void Grow(uint amount) { values.Grow(amount); }
+    override void Resize(uint amount) { values.Resize(amount); }
+    override void Reserve(uint amount) { values.Reserve(amount); }
+    override uint Max() { return values.Max(); }
+    override void Clear() { values.Clear(); }
+
+    void Copy(RefArrayStr other) { values.Copy(other.values); }
+    void Move(RefArrayStr other) { values.Move(other.values); }
+    uint Find(string item) { return values.Find(item); }
+    uint Push(string item) { return values.Push(item); }
+    void Insert(uint index, string item) { values.Insert(index, item); }
+}
+
+class RefArrayObj : RefArray
+{
+    Array<Object> values;
+
+    override uint Size() { return values.Size(); }
+    override bool Pop() { return values.Pop(); }
+    override void Delete(uint index, int deleteCount) { values.Delete(index, deleteCount); }
+    override void ShrinkToFit() { values.ShrinkToFit(); }
+    override void Grow(uint amount) { values.Grow(amount); }
+    override void Resize(uint amount) { values.Resize(amount); }
+    override void Reserve(uint amount) { values.Reserve(amount); }
+    override uint Max() { return values.Max(); }
+    override void Clear() { values.Clear(); }
+
+    void Copy(RefArrayObj other) { values.Copy(other.values); }
+    void Move(RefArrayObj other) { values.Move(other.values); }
+    uint Find(Object item) { return values.Find(item); }
+    uint Push(Object item) { return values.Push(item); }
+    void Insert(uint index, Object item) { values.Insert(index, item); }
+}

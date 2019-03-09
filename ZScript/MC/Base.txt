@@ -1,6 +1,110 @@
 #include "ZScript/MC/WeaponSwitch.txt"
 #include "ZScript/MC/Constants.txt"
 
+Class MCHandlerStatic : StaticEventHandler
+{
+	private Array<QueuedWeapon> Queue;
+	private MCWeaponList WeaponList;
+	private bool InGame;
+	
+	override void OnRegister()
+	{
+		SetOrder(4999);
+		WeaponList = new('MCWeaponList');
+		WeaponList.Init();
+		Super.OnRegister();
+	}
+	
+	override void OnUnregister()
+	{
+		InGame = false;
+	}
+	
+	override void WorldLoaded(WorldEvent e)
+	{
+		Queue.Clear();
+		InGame = true;
+		
+	}
+	
+	override void WorldUnloaded(WorldEvent e)
+	{
+		Queue.Clear();
+		InGame = false;
+	}
+	
+	override void NetworkProcess(ConsoleEvent e)
+	{
+		if (!CheckInGame())	return;
+		
+		int num = e.Player;
+		let plr = players[num].mo;
+		if (!plr)	return;
+		
+		
+		Array<String> strings;
+		e.Name.Split (strings, ":");
+		
+		if (strings.Size() > 1)
+		{
+			if (strings[0] == 'MC_SelectWeapon')
+			{
+				Weapon next = ChangeWeapons(e);
+				if (next) 
+				{
+					QueuedWeapon tosend = QueuedWeapon.Create(next);
+					QueueWeapon(tosend);
+				}
+			}
+		}
+	}
+	
+	// Tremendous thanks to Phantombeta for helping me out with this.
+	override bool InputProcess(InputEvent ev)
+	{
+		return (CheckInGame() && CheckInputWeaponChange(ev));
+	}
+	
+	override void WorldTick()
+	{
+		if (!CheckInGame())	return;
+		TickWeaponTags();
+	}
+	
+	override void PostUiTick()
+	{
+		if (!CheckInGame())	return;
+		PrintWeaponTags();
+	}
+	
+	
+	
+	//--------------------------------------------------------------------------
+	// Custom functions
+	//--------------------------------------------------------------------------
+	static clearscope MCHandlerStatic Fetch()
+	{
+		return MCHandlerStatic(Find("MCHandlerStatic"));
+	}
+	
+	bool CheckInGame() const
+	{
+		return (InGame && gamestate == GS_LEVEL);
+	}
+	
+	static play void QueueWeapon( QueuedWeapon tosend )
+	{
+		MCHandlerStatic local = MCHandlerStatic.Fetch();
+		if ( !local ) return;
+		local.Queue.Push(tosend);
+	}
+	
+}
+
+//==============================================================================
+//
+//==============================================================================
+
 Class MCHandler : EventHandler
 {
 	enum EArray
@@ -25,12 +129,6 @@ Class MCHandler : EventHandler
 	override void OnRegister()
 	{
 		SetOrder(5000); // Plenty of room to go above and below.
-		Queue.Clear();
-		if (!WeaponList)
-		{
-			WeaponList = new('MCWeaponList');
-			WeaponList.Init();
-		}
 		Super.OnRegister();
 	}
 	
@@ -58,82 +156,13 @@ Class MCHandler : EventHandler
 	{
 	}
 	
-	override void WorldTick()
-	{
-		TickWeaponTags();
-	}
-	
-	override void NetworkProcess(ConsoleEvent e)
-	{
-		int num = e.Player;
-		let plr = players[num].mo;
-		if (!plr)	return;
-		
-		if (e.Name == 'PrintMusic')
-		{
-			Console.Printf("Music: %s", musplaying.name);			
-		}
-		else
-		{
-			Array<String> strings;
-			e.Name.Split (strings, ":");
-			
-			if (strings.Size() > 1)
-			{
-				if (strings[0] == 'MC_SelectWeapon')
-				{
-					Weapon next = ChangeWeapons(e);
-					if (next) 
-					{
-						QueuedWeapon tosend = QueuedWeapon.Create(next);
-						QueueWeapon(tosend);
-					}
-				}
-			}
-		}
-		/*
-		
-		Array<String> strings;
-		e.Name.Split (strings, ":");
-		
-		if (strings.Size() > 1)
-		{
-			if (strings[0] == 'MC_SelectWeapon')
-			{
-				Weapon next = ChangeWeapons(e);
-				if (next) 
-				{
-					QueuedWeapon tosend = QueuedWeapon.Create(next);
-					QueueWeapon(tosend);
-				}
-			}
-		}
-		*/
-	}
-	
-	// Tremendous thanks to Phantombeta for helping me out with this.
-	override bool InputProcess(InputEvent ev)
-	{
-		return CheckInputWeaponChange(ev);
-	}
-	
-	override void PostUiTick()
-	{
-		PrintWeaponTags();
-	}
-	
 	//--------------------------------------------------------------------------
 	// Custom functions
 	//--------------------------------------------------------------------------
-	static MCHandler Fetch()
+	static clearscope MCHandler Fetch()
 	{
 		return MCHandler(Find("MCHandler"));
 	}
 	
-	static play void QueueWeapon( QueuedWeapon tosend )
-	{
-		MCHandler local = MCHandler.Fetch();
-		if ( !local ) return;
-		local.Queue.Push(tosend);
-	}
+	
 }

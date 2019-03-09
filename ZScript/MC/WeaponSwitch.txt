@@ -260,8 +260,11 @@ Class MCWeaponList play
 //==============================================================================
 //==============================================================================
 
-extend class MCHandler
+extend class MCHandlerStatic
 {
+	// Most of the code here is private because we don't want anything calling
+	// it when not in game.
+
 	// PostUITick
 	private ui void PrintWeaponTags()
 	{
@@ -348,7 +351,7 @@ extend class MCHandler
 	// weapnext
 	// weapprev
 	//==========================================================================
-	Weapon ChangeWeapons(ConsoleEvent e) 
+	private Weapon ChangeWeapons(ConsoleEvent e)
 	{
 		int pnum = e.Player;
 		if (!playeringame[pnum])

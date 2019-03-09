@@ -1,4 +1,4 @@
 GameInfo
 {
-	AddEventHandlers = "MCHandler"
+	AddEventHandlers = "MCHandler", "MCHandlerStatic"
 }

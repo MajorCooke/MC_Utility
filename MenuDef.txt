@@ -1,0 +1,14 @@
+AddOptionMenu "OptionsMenu"
+{
+	StaticText " "
+	Submenu "MC Utility", "MCUtilityOptions"
+}
+
+OptionMenu "MCUtilityOptions"
+{
+	Title "Major's Utility Options"
+	StaticText "Mods that have weapon slot numbers/priorities"
+	StaticText "can have their weapon selection unrestricted"
+	StaticText "when KEYCONF Buster is on."
+	Option "KEYCONF Buster", "MC_KeyconfWeaponBuster", "OnOff"
+}

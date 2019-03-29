@@ -5,3 +5,8 @@ To appropriately use the KEYCONF Buster, weapons must have a **Weapon.SlotNumber
 
 # WARNING
 This utility file is still in development and may have bugs. Please post any issues encountered inside the Issues tab!
+
+# Credits
+- MarisaKirisami: [Not Hud Message](https://github.com/OrdinaryMagician/icantbelieveitsnothudmsg_m)
+- TheZombieKiller: [ZK Core](https://gitlab.com/TheZombieKiller/zk)
+- PhantomBeta: Additional code for weapon switching hijack + more.

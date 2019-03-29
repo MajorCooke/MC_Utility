@@ -95,7 +95,7 @@ Class MCWeaponList play
 				// positions. as needed.
 				else if (UnSlot == WeSlot)
 				{
-					if (UnDef.SlotPriority < WeDef.SlotPriority)
+					if (UnDef.SlotPriority > WeDef.SlotPriority)
 					{
 						Swap(j, j+1);
 					}

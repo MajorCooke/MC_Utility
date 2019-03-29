@@ -39,6 +39,45 @@ Class MCWeaponList play
 {
 	Array<Class<Weapon> > Weapons;
 	
+	int GetSlotNumber(readonly<Weapon> defwep)
+	{
+		if(!defwep)
+			return -1;
+		if(defwep.SlotNumber>=0&&defwep.SlotNumber<=9)
+			return defwep.SlotNumber;
+		//If the weapon didn't define a slotnumber, check the playerclasses
+		//to see if one of them has it as a weaponslot
+		int playerend=PlayerClasses.Size();
+
+		string thisslot;
+			int theseweaponssize,found;
+		Array<String> theseweapons;
+			let wepname=defwep.GetClassName();
+
+		for(int i=0;i<playerend;i++)
+		{
+			//Check this playerclass to see if the weapon's in its slots
+			let playerclass=(class<PlayerPawn>)(PlayerClasses[i].type);
+			let playerdef=GetDefaultByType(playerclass);
+			for(int j=0;j<=9;j++)
+			{
+				//Split this slot into a string array
+				thisslot=playerdef.slot[j];
+				thisslot.Split(theseweapons," ");
+				theseweaponssize=theseweapons.size();
+				found=theseweapons.find(wepname);
+				//If this weapon's name is in this array (is an item in this weaponslot)
+				//Choose this to be its slot for all other purposes!
+				if(found<theseweaponssize)
+					return j;
+				//If not, clear that array and try again
+				theseweapons.clear();
+			}
+		}
+		//Still didn't find a slot in all those players?
+		//Weapon must not be slotted anywhere. Let's kill it...
+		return -1;
+	}
 	void Init()
 	{
 		// First, just get all weapon valid classes.
@@ -52,10 +91,10 @@ Class MCWeaponList play
 			if (!wep)	continue;
 			
 			// Skip all bad assignments.
-			let def = GetDefaultByType(wep);
-			if (def.SlotNumber < 0 || def.SlotNumber > 9 || 
-				def.SlotPriority > 1.0 || def.SlotPriority < 0.0)
-				continue;
+			//let def = GetDefaultByType(wep);
+			//if (def.SlotNumber < 0 || def.SlotNumber > 9 || 
+				//def.SlotPriority > 1.0 || def.SlotPriority < 0.0)
+				//continue;
 				
 			Weapons.Push(wep);
 		}
@@ -76,8 +115,8 @@ Class MCWeaponList play
 			{
 				let UnDef = GetDefaultByType(Weapons[j]);
 				let WeDef = GetDefaultByType(Weapons[j + 1]);
-				int UnSlot = UnDef.SlotNumber;
-				int WeSlot = WeDef.SlotNumber;
+				int UnSlot = GetSlotNumber(UnDef);
+				int WeSlot = GetSlotNumber(WeDef);
 				
 				// Put slot 0 weapons at the top by faking them to be 10.
 				if (UnSlot == 0)	UnSlot = 10;

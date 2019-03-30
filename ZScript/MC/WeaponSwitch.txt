@@ -39,12 +39,21 @@ Class MCWeaponList play
 {
 	Array<Class<Weapon> > Weapons;
 	
-	int GetSlotNumber(readonly<Weapon> defwep)
+	int,double GetSlotNumber(readonly<Weapon> defwep)
 	{
+		//Just in case we somehow called this with an invalid weapon
 		if(!defwep)
-			return -1;
+			return -1,-1.0;
+		//If the weapon does have a SlotNumber defined, use that
+
+		//We can possibly manage if no Priority is set, so let's get that now...
+		double slotprio=-1.0;
+		if(defwep.SlotPriority>=0.0&&defwep.SlotPriority<=1.0)
+			slotprio=defwep.SlotPriority;
+		//Now the slot itself...
 		if(defwep.SlotNumber>=0&&defwep.SlotNumber<=9)
-			return defwep.SlotNumber;
+			return defwep.SlotNumber,slotprio;
+
 		//If the weapon didn't define a slotnumber, check the playerclasses
 		//to see if one of them has it as a weaponslot
 		int playerend=PlayerClasses.Size();
@@ -69,7 +78,17 @@ Class MCWeaponList play
 				//If this weapon's name is in this array (is an item in this weaponslot)
 				//Choose this to be its slot for all other purposes!
 				if(found<theseweaponssize)
-					return j;
+				{
+					double temppriority=0.0;
+					//First item in the array? Highest priority
+					//Else, check against the size of this slot
+					if(found!=0)
+					{
+						double dfound=found,dtotal=theseweaponssize-1;
+						temppriority=dfound/dtotal;
+					}
+					return j,temppriority;
+				}
 				//If not, clear that array and try again
 				theseweapons.clear();
 			}
@@ -115,9 +134,11 @@ Class MCWeaponList play
 			{
 				let UnDef = GetDefaultByType(Weapons[j]);
 				let WeDef = GetDefaultByType(Weapons[j + 1]);
-				int UnSlot = GetSlotNumber(UnDef);
-				int WeSlot = GetSlotNumber(WeDef);
-				
+				int UnSlot,WeSlot;
+				double UnPriority,WePriority;
+				[UnSlot,UnPriority] = GetSlotNumber(UnDef);
+				[WeSlot,WePriority] = GetSlotNumber(WeDef);
+
 				// Put slot 0 weapons at the top by faking them to be 10.
 				if (UnSlot == 0)	UnSlot = 10;
 				if (WeSlot == 0)	WeSlot = 10;
@@ -134,7 +155,7 @@ Class MCWeaponList play
 				// positions. as needed.
 				else if (UnSlot == WeSlot)
 				{
-					if (UnDef.SlotPriority > WeDef.SlotPriority)
+					if (UnPriority > WePriority)
 					{
 						Swap(j, j+1);
 					}

@@ -47,11 +47,12 @@ Class MCWeaponList play
 		Unsorted.Clear();
 		for (int i = 0; i < AllActorClasses.Size(); ++i)
 		{
-			// Validate first.
+			// Validate first. If it's not a weapon, skip it.
 			let wep = (Class<Weapon>)(AllActorClasses[i]);
 			if (!wep)	continue;
 			
-			// Skip all bad assignments.
+			// Skip all bad assignments. Weapons need a slot number [0, 9]
+			// and range [0.0, 1.0].
 			let def = GetDefaultByType(wep);
 			if (def.SlotNumber < 0 || def.SlotNumber > 9 || 
 				def.SlotPriority > 1.0 || def.SlotPriority < 0.0)
@@ -60,14 +61,24 @@ Class MCWeaponList play
 			Weapons.Push(wep);
 		}
 		
-		// 5.998...
-		// 5.999...
-		// 4.000...
-		// ...wait WHAT THE FUCK!?
-		// Sadly that's the case here. I don't know why it was designed this way
-		// internally, but it's crazy.
-		// Sort through all weapons based on those schematics. Surprisingly,
-		// this was a little easier than I thought it would be.
+		// Now we have all the weapons, sort through all of them.
+		// Also, for future reference:
+		// Un = Unsorted
+		// We = Sorted Weapon
+		
+		// This array is iterated through like this:
+		// | = Sub-iterated through
+		// - = Not iterated through
+		// ||||||||||
+		// -|||||||||
+		// --||||||||
+		// ---|||||||
+		// ----||||||
+		// -----|||||
+		// ------||||
+		// -------|||
+		// --------||
+		// Where each time, the array is started one step closer to the end.
 		
 		int size = Weapons.Size();
 		for (int i = 0; i < size - 1; i++)
@@ -82,6 +93,7 @@ Class MCWeaponList play
 				// Put slot 0 weapons at the top by faking them to be 10.
 				if (UnSlot == 0)	UnSlot = 10;
 				if (WeSlot == 0)	WeSlot = 10;
+				
 				// First, we need to sort out based on slot. If it's behind,
 				// switch it. This will group them all up together in DESCENDING
 				// order.
@@ -103,7 +115,7 @@ Class MCWeaponList play
 			}
 		}
 		
-		// Debug function for printing all VALID weapons thath ave been picked up
+		// Debug function for printing all VALID weapons that have been picked up
 		// and sorted into the selection array. If a weapon doesn't display,
 		// that means the slot number and/or priority is set wrong.
 		
@@ -345,6 +357,7 @@ extend class MCHandlerStatic
 					// Calls NetworkEvent in Base.txt and assembles the command
 					// to call ChangeWeapons function below, and aborts the 
 					// rest of the input.
+					
 					EventHandler.SendNetworkEvent(String.Format("MC_SelectWeapon:%s", KeyBindsNetEvents[i]));
 					return true;
 				}
@@ -371,7 +384,7 @@ extend class MCHandlerStatic
 			
 		PlayerInfo player = players[pnum];
 
-		if (!player) // Return if the player is null
+		if (!player) // No player.
 			return null;
 
 		Array<String> commandStrings;
@@ -419,6 +432,7 @@ extend class MCHandlerStatic
 		if (!next)	next = ready;
 		if (next && next != ready)	
 			player.PendingWeapon = next;
+		else next = null;
 		
 		return next;
 	}

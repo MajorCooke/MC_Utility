@@ -10,19 +10,23 @@ Class MCHandlerStatic : StaticEventHandler
 	override void OnRegister()
 	{
 		SetOrder(4999);
-		WeaponList = new('MCWeaponList');
-		WeaponList.Init();
 		Super.OnRegister();
 	}
 	
 	override void OnUnregister()
 	{
 		InGame = false;
+		Super.OnUnregister();
 	}
 	
 	override void WorldLoaded(WorldEvent e)
 	{
 		Queue.Clear();
+		if (!WeaponList || e.IsSaveGame)
+		{
+			WeaponList = new('MCWeaponList');
+			WeaponList.Init();
+		}
 		InGame = true;
 	}
 	
@@ -111,18 +115,18 @@ Class MCHandler : EventHandler
 		SetOrder(5000); // Plenty of room to go above and below.
 		Super.OnRegister();
 	}
-	
+	/*
 	override void WorldLoaded(WorldEvent e)
 	{
 	}
-	
+	*/
 	override void WorldUnloaded(WorldEvent e)
 	{
 		Monsters.Clear();
 		DeadMonsters.Clear();
 		Missiles.Clear();
 	}
-	
+	/*
 	override void WorldThingSpawned(WorldEvent e)
 	{
 	}
@@ -134,7 +138,7 @@ Class MCHandler : EventHandler
 	override void WorldThingDestroyed(WorldEvent e)
 	{
 	}
-	
+	*/
 	// This is where it all begins.
 	override bool InputProcess(InputEvent ev)
 	{

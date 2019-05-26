@@ -7,8 +7,20 @@ AddOptionMenu "OptionsMenu"
 OptionMenu "MCUtilityOptions"
 {
 	Title "Major's Utility Options"
-	StaticText "Mods that have weapon slot numbers/priorities"
-	StaticText "can have their weapon selection unrestricted"
-	StaticText "when KEYCONF Buster is on."
+	StaticText "Mods that have weapon slot numbers/priorities", GOLD
+	StaticText "can have their weapon selection unrestricted", GOLD
+	StaticText "when KEYCONF Buster is on.", GOLD
 	Option "KEYCONF Buster", "MC_KeyconfWeaponBuster", "OnOff"
+	StaticText ""
+	StaticText "Automap/Regular Key Order Process", GOLD
+	StaticText "Only applies when Automap is enabled", GOLD
+	Option "Keybind Priority Order", "MC_KBPriority", "KeybindPriorities"
+}
+
+OptionValue "KeybindPriorities"
+{
+	0, "Regular Only"
+	1, "Automap Only"
+	2, "Regular / Automap"
+	3, "Automap / Regular"
 }

@@ -1,5 +1,6 @@
 #include "ZScript/MC/WeaponSwitch.txt"
 #include "ZScript/MC/Constants.txt"
+#include "ZScript/MC/ActorDisplay.txt"
 
 Class MCHandlerStatic : StaticEventHandler
 {
@@ -100,8 +101,11 @@ Class MCHandlerStatic : StaticEventHandler
 
 Class MCHandler : EventHandler
 {
-	Array<Actor> Monsters, DeadMonsters, Missiles;
-	Array<Inventory> Items;
+	const Second = 35;
+	const TimeTrigger = Second * 5;
+
+	AArray Monsters, DeadMonsters, Missiles, Tracker, Items;
+	private int Timer;
 	private Array<QueuedWeapon> Queue;
 	private MCWeaponList WeaponList;
 	private bool InGame;
@@ -115,36 +119,145 @@ Class MCHandler : EventHandler
 	}
 	
 	//--------------------------------------------------------------------------
+	//--------------------------------------------------------------------------
+	bool IsPlayerPawn(Actor mo)
+	{
+		return (!mo || mo is "PlayerPawn" || mo.player);
+	}
+	
+	//--------------------------------------------------------------------------
 	// Overrides
 	//--------------------------------------------------------------------------
 	
 	override void OnRegister()
 	{
 		SetOrder(5000); // Plenty of room to go above and below.
+		SetupProjectionStuff();
 		Super.OnRegister();
 	}
+	
+	override void RenderUnderlay(RenderEvent e)
+	{
+		ProcessHudElements(e);
+	}
+	
+	override void WorldTick()
+	{
+		TickShapes();
+	}
 	/*
+	override void WorldTick()
+	{
+		// Clear the lists every TimeTrigger seconds of null pointers.
+		Timer++;
+		if (Timer >= TimeTrigger)
+		{
+			Timer = 0;
+			int size = Monsters.Actors.Size();
+			for (int i = 0; i < size; i++)
+			{
+				Actor mo = Monsters.Actors[i];
+				if (mo && mo.health < 1)
+				{
+					if (DeadMonsters.Find(mo) >= DeadMonsters.Size())
+						DeadMonsters.Push(mo);
+					Monsters.Actors[i] = null;					
+				}
+			}
+			size = DeadMonsters.Actors.Size();
+			for (int i = 0; i < size; i++)
+			{
+				Actor mo = DeadMonsters.Actors[i];
+				if (mo && mo.health > 0)
+				{
+					Monsters.Push(mo);
+					DeadMonsters.Actors[i] = null;
+				}
+			}
+			
+			Monsters.Clean();
+			DeadMonsters.Clean();
+			Missiles.Clean();
+			Tracker.Clean();
+			Items.Clean();
+		}
+	}
+	
 	override void WorldLoaded(WorldEvent e)
 	{
+		Monsters = AArray.Create();
+		DeadMonsters = AArray.Create();
+		Missiles = AArray.Create();
+		Tracker = AArray.Create();
+		Items = AArray.Create();
 	}
 	
-	override void WorldUnloaded(WorldEvent e)
-	{
-	}
-	
+	//--------------------------------------------------------------------------
+	//--------------------------------------------------------------------------
+	// Recording section. Here, we add things that have specifics needs for 
+	// tracking so we don't have to rely on iterators. As Graf Zahl stated,
+	// an array will go much farther to optimize the crap out of searching
+	// over using an iterator in almost all circumstances.
 	override void WorldThingSpawned(WorldEvent e)
 	{
+		Actor mo = e.thing;
+		
+		if (mo.bNOINTERACTION || mo is "Inventory" || mo.bNOSECTOR || 
+			IsPlayerPawn(mo) || mo is "RandomSpawner")
+			return;
+
+		if (mo.bMISSILE && mo.bSEEKERMISSILE)
+		{
+			Missiles.Push(mo);
+			return;
+		}
+		
+		if ((mo.bISMONSTER || mo.bSHOOTABLE))
+		{
+			if (mo.health > 0)
+				Monsters.Push(mo);
+			else
+				DeadMonsters.Push(mo);
+		}
 	}
 	
+	//--------------------------------------------------------------------------
+	//--------------------------------------------------------------------------
+	override void WorldThingRevived(WorldEvent e)
+	{
+		// Add the monster to the list if not already present.
+		Actor mo = e.Thing;
+		if (IsPlayerPawn(mo))	return;
+		
+		int i = DeadMonsters.Find(mo);
+		if (i < DeadMonsters.Size())
+			DeadMonsters.Actors[i] = null;
+		Monsters.Push(mo);
+	}
+	
+	//--------------------------------------------------------------------------
+	//--------------------------------------------------------------------------
 	override void WorldThingDied(WorldEvent e)
 	{
+		Actor mo = e.Thing;
+		
+		if (IsPlayerPawn(mo))
+			return;
+		
+		// Allocate them over to the DeadMonsters array and remove them from 
+		// the living.
+		if (DeadMonsters.Find(mo) >= DeadMonsters.Size())
+			DeadMonsters.Push(mo);
+			
+		int i = Monsters.Find(mo);
+		if (i < Monsters.Size())
+			Monsters.Actors[i] = null;
 	}
 	
-	override void WorldThingDestroyed(WorldEvent e)
-	{
-	}
 	*/
-	// This is where it all begins.
+	//==========================================================================
+	//==========================================================================
+	// This is where KEYCONF Buster begins.
 	override bool InputProcess(InputEvent ev)
 	{
 		if (ev.Type == InputEvent.Type_KeyDown)
@@ -238,5 +351,129 @@ Class MCHandler : EventHandler
 	static MCHandler Fetch()
 	{
 		return MCHandler(Find("MCHandler"));
+	}
+}
+
+//==============================================================================
+//==============================================================================
+// AArray Class
+// Designed by Major Cooke
+//
+// The goal behind this is an adjustable actor array with functions for
+// maintaining and cleaning more easily.
+//==============================================================================
+//==============================================================================
+
+Class AArray
+{
+	const DefaultSize = 16;
+	protected Class<Actor> ClassType;
+	
+	Array<Actor> Actors;
+	
+	//--------------------------------------------------------------------------
+	// Initialization functions.
+	//--------------------------------------------------------------------------
+	static AArray Create(int size = -1, Name type = '')
+	{
+		AArray arr = new('AArray');
+		arr.Init(size, type);
+		return arr;
+	}
+	
+	void Init(int size, Class<Actor> type)
+	{
+		ClassType = type;
+		
+		Actors.Clear();
+		
+		if (size > 0)
+			SetSize(size);
+	}
+	
+	//--------------------------------------------------------------------------
+	// Information.
+	//--------------------------------------------------------------------------
+	
+	int Size()	{	return Actors.Size();	}
+	
+	//--------------------------------------------------------------------------
+	// Manipulation functions.
+	//--------------------------------------------------------------------------
+	void Push(Actor mo)
+	{
+		// Make sure it exists and isn't restricted from insertion.
+		if (!mo || (ClassType != null && !(mo is ClassType)))	return;
+		Actors.Push(mo);
+	}
+	
+	void Delete(Actor mo)
+	{
+		int size = Actors.Size();
+		if (mo && size > 0)
+		{
+			int pos = Actors.Find(mo);
+			if (pos < size)
+				Actors[pos] = null;
+		}
+	}
+	
+	private int SetSize(int size)
+	{
+		int old = Actors.Size();
+		if (old == size)
+			return 0;
+		if (size < 1)
+		{
+			Actors.Clear();
+			return -old;
+		}
+		
+		Actors.Resize(size);
+		if (old < size)
+		{
+			for (int i = old; i < size; i++)
+				Actors[i] = null;
+		}
+		return old - size;
+	}
+	
+	// Apparently returns cannot convert from UInt to Int properly, GZDoom refuses
+	// to start up. So it must be assigned to variable first before being returned.
+	int Find(Actor mo)
+	{
+		int pos = Actors.Find(mo);
+		return pos;
+	}
+	
+	Actor FindActor(Actor mo)
+	{
+		int size = Actors.Size();
+		if (size < 1)
+			return null;
+			
+		int pos = Actors.Find(mo);
+		Actor ret = null;
+		
+		if (pos < size)	
+			ret = Actors[pos];
+		return ret;
+	}
+	
+	//==========================================================================
+	// Cleans up an array by copying all non-nulls to a temp array and overriding
+	// the original.
+	//==========================================================================
+	void Clean()
+	{
+		int size = Actors.Size();
+		if (size < 1)
+			return;
+			
+		Array<Actor> temp; temp.Clear();
+		for (int i = 0; i < size; i++)
+			if (Actors[i] != null)	temp.Push(Actors[i]);
+			
+		Actors.Move(temp);
 	}
 }

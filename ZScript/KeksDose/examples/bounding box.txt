@@ -1,0 +1,283 @@
+/*	kd:
+	
+	If you look at an actor, its bounding box will be drawn. It will also tell
+	you if the bounding box is visible on the screen, even partially. This takes
+	both gl and software into account.
+	
+	*/
+
+class ShowBox : EventHandler {
+	protected Le_ProjScreen			proj;
+	protected Le_GlScreen			gl_proj;
+	protected Le_SwScreen			sw_proj;
+	protected bool					can_project;
+	protected bool					show_spaces;
+	
+	protected Cvar					cvar_renderer;
+	
+	protected Actor					target;
+	
+	override void OnRegister () {
+		gl_proj			= new("Le_GlScreen");
+		sw_proj			= new("Le_SwScreen");
+		cvar_renderer	= Cvar.GetCvar("vid_rendermode", players [consoleplayer]);
+		PrepareProjection();
+	}
+	
+	// kd: This selects the correct projector for your renderer and determines
+	// whether you can even do a projection.
+	protected void PrepareProjection () {
+		if(cvar_renderer)
+		switch(cvar_renderer.GetInt()) {
+		default:
+			proj = gl_proj;
+			break;
+		case 0:
+		case 1:
+			proj = sw_proj;
+			break;
+		}
+		
+		else {
+			proj = gl_proj;
+		}
+		
+		can_project	= proj != NULL;
+	}
+	
+	override void WorldTick () {
+		let po = PlayerPawn(players [consoleplayer].mo);
+		
+		if(!po) {
+			target = NULL;
+			return;
+		}
+		
+		if(po.player.original_cmd.buttons & BT_ALTATTACK) {
+			show_spaces = true;
+		}
+		
+		else {
+			show_spaces = false;
+		}
+		
+		PrepareProjection();
+	}
+	
+	void SetTarget (Actor mo) 
+	{
+		if(mo) target = mo;
+	}
+	
+	protected Le_Viewport			viewport;
+	
+	override void RenderOverlay (RenderEvent event) {
+		let resolution = (Screen.GetWidth(), Screen.GetHeight());
+		
+		viewport.FromHud();
+		
+		if(show_spaces) {
+			DrawSpaceBounds(resolution);
+		}
+		
+		// kd: This would cause a vm-abort.
+		if(!can_project) {
+			return;
+		}
+		
+		// kd: Now you can handle both opengl and old software mode without
+		// any worry. First find the corner positions.
+		if(!target) {
+			return;
+		}
+		
+		// kd: some recent gzd versions have bugged vector3 init.
+		/* vector3 offset [8] = {
+			( target.radius,  target.radius, 0)
+		,	( target.radius, -target.radius, 0)
+		,	(-target.radius, -target.radius, 0)
+		,	(-target.radius,  target.radius, 0)
+		,	( target.radius,  target.radius, target.height)
+		,	( target.radius, -target.radius, target.height)
+		,	(-target.radius, -target.radius, target.height)
+		,	(-target.radius,  target.radius, target.height)
+		}; */
+		
+		double offset [8 * 3] = {
+			 target.radius,  target.radius, 0
+		,	 target.radius, -target.radius, 0
+		,	-target.radius, -target.radius, 0
+		,	-target.radius,  target.radius, 0
+		,	 target.radius,  target.radius, target.height
+		,	 target.radius, -target.radius, target.height
+		,	-target.radius, -target.radius, target.height
+		,	-target.radius,  target.radius, target.height
+		};
+		
+		vector3 corner_pos [8];
+		
+		for(let i = 0; i < 8; i++) {
+			let j = 3 * i;
+			
+			let offset_vec	= (offset [j], offset [j + 1], offset [j + 2]);
+			corner_pos [i]	= target.pos + offset_vec;
+		}
+		
+		// kd: Then you project all 8.
+		vector2 screen_pos [8];
+		
+		proj.CacheResolution();
+		proj.CacheFov(players [consoleplayer].fov);
+		proj.OrientForRenderOverlay(event);
+		proj.BeginProjection();
+		
+		bool is_in_scene	= false;
+		bool is_visible		= false;
+		
+		for(let i = 0; i < 8; i++) {
+			proj.ProjectWorldPos(corner_pos [i]);
+			
+			let normal_pos = proj.ProjectToNormal();
+			
+			screen_pos [i] = viewport.SceneToWindow(normal_pos);
+			
+			// kd: If you aren't inside the actor, its box gets drawn if there's
+			// at least one visible corner. This prevents an odd looking line
+			// mess.
+			if(!proj.IsInFront()) {
+				is_visible	= false;
+				is_in_scene	= false;
+				break;
+			}
+			
+			is_visible	= is_visible || viewport.IsInside(normal_pos);
+			is_in_scene	= is_in_scene || proj.IsInScreen();
+		}
+		
+		// kd: Draw lines appropriately.
+		if(is_in_scene) {
+			let col		= is_visible ? 0xffffffff : 0xffff00ff;
+			let str		= is_visible ? "Is in viewport" : "Is in scene";
+			let str_col	= is_visible ? Font.CR_SAPPHIRE : Font.CR_ICE;
+			
+			for(let i = 0; i < 4; i++) {
+				let j = i + 1;
+				
+				if(4 <= j) {
+					j -= 4;
+				}
+				
+				// kd: Square at foot level.
+				Screen.DrawLine(
+					screen_pos [i].x,
+					screen_pos [i].y,
+					screen_pos [j].x,
+					screen_pos [j].y,
+					col);
+				
+				// kd: Square at top level.
+				Screen.DrawLine(
+					screen_pos [i + 4].x,
+					screen_pos [i + 4].y,
+					screen_pos [j + 4].x,
+					screen_pos [j + 4].y,
+					col);
+				
+				// kd: Connecting lines.
+				Screen.DrawLine(
+					screen_pos [i].x,
+					screen_pos [i].y,
+					screen_pos [i + 4].x,
+					screen_pos [i + 4].y,
+					col);
+			}
+			
+			Screen.DrawText(
+				smallfont,
+				str_col,
+				0,
+				0,
+				str);
+		}
+		
+		else {
+			Screen.DrawText(
+				smallfont,
+				Font.CR_WHITE,
+				0,
+				0,
+				"Thing is out of view");
+		}
+	}
+	
+	// kd: This draws rectangles where I placed the "actual" 3D world and the
+	// shifted one (play around with screenblocks to see this).
+	
+	ui void DrawSpaceBounds (vector2 resolution) const {
+		let p1 = viewport.SceneToCustom((-1, -1), resolution);
+		let p2 = viewport.SceneToCustom(( 1, -1), resolution);
+		let p3 = viewport.SceneToCustom(( 1,  1), resolution);
+		let p4 = viewport.SceneToCustom((-1,  1), resolution);
+		
+		let q1 = viewport.ViewportToCustom((-1, -1), resolution);
+		let q2 = viewport.ViewportToCustom(( 1, -1), resolution);
+		let q3 = viewport.ViewportToCustom(( 1,  1), resolution);
+		let q4 = viewport.ViewportToCustom((-1,  1), resolution);
+		
+		Screen.DrawLine(
+			p1.x,
+			p1.y,
+			p2.x,
+			p2.y,
+			0xff00ff00);
+		
+		Screen.DrawLine(
+			p2.x,
+			p2.y,
+			p3.x,
+			p3.y,
+			0xff00ff00);
+		
+		Screen.DrawLine(
+			p3.x,
+			p3.y,
+			p4.x,
+			p4.y,
+			0xff00ff00);
+		
+		Screen.DrawLine(
+			p4.x,
+			p4.y,
+			p1.x,
+			p1.y,
+			0xff00ff00);
+		
+		Screen.DrawLine(
+			q1.x,
+			q1.y,
+			q2.x,
+			q2.y,
+			0xff00ffff);
+		
+		Screen.DrawLine(
+			q2.x,
+			q2.y,
+			q3.x,
+			q3.y,
+			0xff00ffff);
+		
+		Screen.DrawLine(
+			q3.x,
+			q3.y,
+			q4.x,
+			q4.y,
+			0xff00ffff);
+		
+		Screen.DrawLine(
+			q4.x,
+			q4.y,
+			q1.x,
+			q1.y,
+			0xff00ffff);
+	}
+}

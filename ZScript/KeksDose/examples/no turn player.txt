@@ -1,0 +1,109 @@
+/*	kd:
+	
+	This player can't turn and has a rapid fire missile mini gun thingy with
+	free aim.
+	
+	*/
+
+class NoTurnPlayer : PlayerPawn {
+	default {
+		Player.DisplayName "Free aimer";
+		Player.StartItem "NoTurnGun";
+		Player.WeaponSlot 2, "NoTurnGun";
+	}
+	
+	protected vector3				cursor_diff;
+	
+	vector3 CursorDirection () const {
+		return cursor_diff;
+	}
+	
+	override bool CheckFrozen () {
+		
+		// kd: gzd is funny with view interpolation so I tell it to shut up here
+		player.cmd.yaw		= 0;
+		player.cmd.pitch	= 0;
+		player.cmd.roll		= 0;
+		player.turnticks	= 0;
+		player.cheats		|= CF_INTERPVIEW;
+		return super.CheckFrozen();
+	}
+	
+	override void Tick () {
+		super.Tick();
+		
+		let free_aim = FreeAim(FreeAim.Find("FreeAim"));
+		
+		if(free_aim) {
+			cursor_diff = free_aim.CursorDirection();
+		}
+	}
+}
+
+class NoTurnGun : RocketLauncher {
+	default {
+		Weapon.AmmoType "";
+		Weapon.AmmoUse 0;
+	}
+	
+	states {
+	fire:
+		MISG A 6 A_GunFlash("startflash");
+	hold:
+		MISG B 6 {
+			let user = NoTurnPlayer(player.mo);
+			
+			if(user) {
+				
+				// kd: The direction vector the projectors spit out is already
+				// kinda pointing towards where you look, so if you're gonna
+				// shoot a projectile, don't do anything with angles and
+				// fireprojectile or whatever. It'd be redundant.
+				let diff	= user.CursorDirection();
+				let mo		= Spawn(
+					"NoTurnRocket",
+					// vec3offset(0, 0, 0.5 * user.height + user.floorclip + user.attackzoffset));
+					vec3offset(0, 0, user.player.viewheight));
+				
+				if(mo) {
+					A_GunFlash();
+					A_AlertMonsters();
+					A_PlaySound(mo.seesound);
+					mo.target	= user;
+					mo.vel		= diff.unit() * mo.speed;
+					mo.angle	= VectorAngle(diff.x, diff.y);
+					mo.pitch	= VectorAngle(diff.xy.length(), diff.z);
+				}
+			}
+		}
+		
+		MISG B 6 A_ReFire;
+		goto ready;
+	
+	startflash:
+		MISF A 6 bright A_Light1;
+		goto lightdone;
+	
+	flash:
+		MISF B 3 bright A_Light1;
+		MISF CD 3 bright A_Light2;
+		goto lightdone;
+	}
+}
+
+class NoTurnRocket : DoomImpBall {
+	default {
+		Scale 0.5;
+		Speed 35;
+		Damage 7;
+		Radius 3;
+		Height 3;
+		SeeSound "weapons/rocklf";
+	}
+	
+	states {
+	death:
+		MISL BCD 5 bright;
+		stop;
+	}
+}

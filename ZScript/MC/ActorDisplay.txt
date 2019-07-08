@@ -1,0 +1,223 @@
+extend class MCHandler
+{
+	protected Le_ProjScreen			proj;
+	protected Le_GlScreen			gl_proj;
+	protected Le_SwScreen			sw_proj;
+	protected bool					can_project;
+	protected bool					show_spaces;
+	protected transient Cvar		cvar_renderer;
+	protected Le_Viewport			viewport;
+	protected Array<MCHudShape>		Shapes;
+	
+	protected void SetupProjectionStuff()
+	{
+		gl_proj			= new("Le_GlScreen");
+		sw_proj			= new("Le_SwScreen");
+		cvar_renderer	= Cvar.GetCvar("vid_rendermode", players [consoleplayer]);
+		PrepareProjection();
+	}
+	
+	// kd: This selects the correct projector for your renderer and determines
+	// whether you can even do a projection.
+	protected void PrepareProjection() 
+	{
+		if (cvar_renderer)
+		{
+			switch (cvar_renderer.GetInt()) 
+			{
+				default:
+					proj = gl_proj;
+					break;
+				case 0:
+				case 1:
+					proj = sw_proj;
+					break;
+			}
+		}
+		else proj = gl_proj;
+		can_project	= proj != NULL;
+	}
+	
+	protected ui void ProcessHudElements(RenderEvent e)
+	{
+		if (!proj || Shapes.Size() < 1)	
+			return;
+		
+		proj.CacheResolution();
+		proj.CacheFov(players[consoleplayer].fov);
+		proj.OrientForRenderOverlay(e);
+		proj.BeginProjection();
+		
+		
+		for (int i = 0; i < Shapes.Size(); i++)
+		{
+			let Shape = Shapes[i];
+			if (!Shape || !Shape.target || !Shape.caller || !Shape.active)	continue;
+			
+			let target = Shape.target;
+			Vector2 p = Shape.pos;
+			proj.ProjectWorldPos(target.vec3offset(0, p.x, p.y));
+			if (proj.IsInFront())
+			{
+				let draw_pos = proj.ProjectToScreen();
+				Shape.Render(e, draw_pos);
+			}
+		}
+	}
+	
+	void TickShapes()
+	{
+		for (int i = 0; i < Shapes.Size(); i++)
+		{
+			let Shape = Shapes[i];
+			if (Shape)	Shape.Tick();
+		}
+	}
+	
+	void RemoveShape(MCHudShape mo)
+	{
+		for (int i = 0; i < Shapes.Size(); i++)
+		{
+			if (mo && mo == Shapes[i])
+			{
+				mo.Destroy();
+				Shapes[i] = null;
+				return;
+			}
+		}
+	}
+	
+	MCHudShape AddShape(Actor target, Actor caller, String texname, Vector2 pos = (0,0), double rot = 0.0, Vector2 scale = (1, 1))
+	{
+		TextureID tex = TexMan.CheckForTexture(texname,TexMan.Type_Any);
+		if (!target || !caller || !tex)
+		{
+			Console.Printf("AddShape needs target, caller and texture");
+			return null;
+		}
+
+		MCHudShape Shape = MCHudShape.Create(target, caller,  texname, pos, rot, scale);
+		
+		if (Shape)
+		{
+			int size = Shapes.Size();
+			
+			if (size < 1)
+			{
+				Shapes.Push(Shape);
+				return Shape;
+			}
+			
+			int pos = Shapes.Find(null);
+			if (pos < size)	Shapes[pos] = Shape;
+			else			Shapes.Push(Shape);
+		}
+		return Shape;
+	}
+}
+
+//==============================================================================
+//
+//==============================================================================
+Class MCHudShape play
+{
+	private Vector2 siz; 		//
+	Vector2 pos, scale;			// offset & scale
+	double rot, alpha;			// rotation + alpha
+	String texname;				// Texture name
+	TextureID tex;
+	Shape2D flat;
+	Shape2DTransform trans;
+	Actor target;				// Used for positioning.
+	Actor caller;				// 
+	bool active;
+	
+	static MCHudShape Create(Actor target, Actor caller, String texname, Vector2 pos, double rot = 0.0, Vector2 scale = (1, 1))
+	{
+		TextureID tex = TexMan.CheckForTexture(texname,TexMan.Type_Any);
+		if (!target || !caller || !tex)	return null;
+		
+		let hud = new('MCHudShape');
+		if (hud)
+		{
+			hud.Update(target, caller, texname, pos, rot, scale);
+			hud.Init();
+		}
+		return hud;
+	}
+	
+	void Update(Actor target, Actor caller, String texname, Vector2 pos, double rot = 0.0, Vector2 scale = (1, 1))
+	{
+		self.target = target;
+		self.caller = caller;
+		self.SetTexture(texname);
+		self.pos = pos;
+		self.rot = rot;
+		self.scale = scale;
+		self.alpha = 1.0;
+	}
+	
+	protected void Init()
+	{
+		flat = new("Shape2D");
+		
+		// simple coords
+		flat.PushCoord((0,0));	// 0
+		flat.PushCoord((1,0));	// 1
+		flat.PushCoord((0,1));	// 2
+		flat.PushCoord((1,1));	// 3
+		
+		// PushTriangle takes INDEXES of coords pushed to it in order from
+		// first to last, as numbered above.
+		flat.PushTriangle(0,2,1); // (0,0) (0,1) (1,0)
+		flat.PushTriangle(2,3,1); // (0,1) (1,1) (1,0)
+		siz = TexMan.GetScaledSize(tex);
+		
+		// Create the vertices and push them into the array.
+		Vector2 vertices[4];
+		vertices[0] = (-siz.x,-siz.y);
+		vertices[1] = ( siz.x,-siz.y);
+		vertices[2] = (-siz.x, siz.y);
+		vertices[3] = ( siz.x, siz.y);
+		
+		flat.Clear(Shape2D.C_Verts);
+		for ( int i=0; i<4; i++ ) flat.PushVertex(vertices[i]);
+		
+		trans = new('Shape2DTransform');
+		active = true;
+	}
+	
+	ui void Render( RenderEvent e, Vector2 drawpos )
+	{	
+		trans.Clear();
+		if (!active || alpha <= 0.0 || bDESTROYED)
+			return;
+		
+		trans.Scale((scale.x, scale.y));
+		trans.Rotate(rot);
+		trans.Translate(drawpos);
+		
+		flat.SetTransform(trans);
+		
+		// draw the shape
+		Screen.DrawShape(tex,false,flat,DTA_Alpha, Clamp(alpha, 0.0, 1.0));
+	}
+	
+	virtual void Tick() 
+	{
+		if (!bDESTROYED && (!target || !caller || !tex))
+			Destroy();
+	}
+	
+	bool SetTexture(string texname)
+	{
+		TextureID tex = TexMan.CheckForTexture(texname,TexMan.Type_Any);
+		if (tex)
+		{
+			self.texname = texname;
+			self.tex = tex;
+			return true;
+		}
+		return false;
+	}
+}

@@ -1,0 +1,74 @@
+/*	kd:
+	
+	This puts a candle with text over it in front of you, but only in opengl.
+	I made this simpler cuz the other examples are a bit overblown.
+	
+	*/
+
+class TextCandleGl : EventHandler {
+	protected Le_GlScreen			gl_proj;
+	protected bool					can_project;
+	protected Actor					mo;
+	protected String				text;
+	protected double				text_offset;
+	protected Le_Viewport			viewport;
+	
+	// kd: This prepares the projector and text, which we have to align
+	// ourselves. You have to new the projector, otherwise, you may get a
+	// vm-abort, if you're unfamiliar.
+	override void OnRegister () {
+		gl_proj		= new("Le_GlScreen");
+		can_project	= gl_proj != NULL;
+		
+		text		= "I'M A CANDLE";
+		text_offset	= 0.5 * smallfont.StringWidth(text);
+	}
+	
+	// kd: Spawn the candle somewhere in front of you (might be in a wall).
+	override void PlayerEntered (PlayerEvent event) {
+		let po = players [event.playernumber].mo;
+		
+		if(!po) {
+			return;
+		}
+		
+		let forw = (cos(po.angle), sin(po.angle), 0);
+		mo = Actor.Spawn("Candlestick", po.pos + 100 * forw);
+	}
+	
+	// kd: Draw the text over the candle if we can.
+	override void RenderOverlay (RenderEvent event) {
+		if(!can_project || !mo) {
+			return;
+		}
+		
+		// kd: Always draw text the same size, no matter the resolution, then
+		// project the text.
+		let window_aspect	= 1.0 * Screen.GetWidth() / Screen.GetHeight();
+		let resolution		= 480 * (window_aspect, 1);
+		
+		gl_proj.CacheCustomResolution(resolution);
+		gl_proj.CacheFov(players [consoleplayer].fov);
+		gl_proj.OrientForRenderOverlay(event);
+		gl_proj.BeginProjection();
+		gl_proj.ProjectWorldPos(mo.vec3offset(0, 0, mo.height));
+		
+		if(gl_proj.IsInFront()) {
+			viewport.FromHud();
+			
+			let draw_pos = viewport.SceneToCustom(
+				gl_proj.ProjectToNormal(),
+				resolution);
+			
+			Screen.DrawText(
+				smallfont,
+				Font.CR_ICE,
+				draw_pos.x - text_offset,
+				draw_pos.y,
+				text,
+				DTA_VIRTUALWIDTHF,	resolution.x,
+				DTA_VIRTUALHEIGHTF,	resolution.y,
+				DTA_KEEPRATIO,		true);
+		}
+	}
+}

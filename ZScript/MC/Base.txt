@@ -1,6 +1,7 @@
 #include "ZScript/MC/WeaponSwitch.txt"
 #include "ZScript/MC/Constants.txt"
 #include "ZScript/MC/ActorDisplay.txt"
+#include "ZScript/MC/Relations.txt"
 
 Class MCHandlerStatic : StaticEventHandler
 {
@@ -140,14 +141,12 @@ Class MCHandler : EventHandler
 	{
 		ProcessHudElements(e);
 	}
+
 	
 	override void WorldTick()
 	{
 		TickShapes();
-	}
-	/*
-	override void WorldTick()
-	{
+	
 		// Clear the lists every TimeTrigger seconds of null pointers.
 		Timer++;
 		if (Timer >= TimeTrigger)
@@ -252,9 +251,19 @@ Class MCHandler : EventHandler
 		int i = Monsters.Find(mo);
 		if (i < Monsters.Size())
 			Monsters.Actors[i] = null;
+		
+		
+		if (mo.CountInv("MinionToken"))
+		{
+			let victor = mo.target;
+			if (victor && !IsPlayerPawn(victor) && mo.master)
+			{
+				victor.lastenemy = mo.master;
+			}
+		}
 	}
 	
-	*/
+	
 	//==========================================================================
 	//==========================================================================
 	// This is where KEYCONF Buster begins.
@@ -467,8 +476,11 @@ Class AArray
 	void Clean()
 	{
 		int size = Actors.Size();
-		if (size < 1)
-			return;
+		// Array empty.
+		if (size < 1)	return;
+			
+		// No empty slots.
+		if (Actors.Find(null) >= size)	return;
 			
 		Array<Actor> temp; temp.Clear();
 		for (int i = 0; i < size; i++)

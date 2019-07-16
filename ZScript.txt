@@ -1,7 +1,7 @@
 version "4.0"
 
 #include "ZScript/MC/Base.txt"
-#include "ZScript/MarisaKirisame/Message.txt"
+#include "ZScript/MarisaKirisame/Include.txt"
 #include "ZScript/KeksDose/Include.txt"
 #include "ZScript/TZK/Include.txt"
 #include "ZScript/MC_Gutamatics/Include.zsc"

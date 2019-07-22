@@ -40,7 +40,7 @@ extend class MCHandler
 	
 	protected ui void ProcessHudElements(RenderEvent e)
 	{
-		if (!proj || Shapes.Size() < 1)	
+		if (automapActive || !proj || Shapes.Size() < 1)	
 			return;
 		
 		proj.CacheResolution();
@@ -54,24 +54,59 @@ extend class MCHandler
 			let Shape = Shapes[i];
 			if (!Shape || !Shape.target || !Shape.caller || !Shape.active)	continue;
 			
+			// If there's a CVar attached, means it's controlled by the player.
+			// Otherwise, it'll draw normally by default.
+			
+			if (Shape.check != '')
+			{
+				CVar check = CVar.GetCvar(Shape.check, players[consoleplayer]);
+				if (check && !check.GetBool())
+					continue;
+			}
+			
 			let target = Shape.target;
 			Vector2 p = Shape.pos;
 			proj.ProjectWorldPos(target.vec3offset(0, p.x, p.y));
 			if (proj.IsInFront())
 			{
 				let draw_pos = proj.ProjectToScreen();
-				Shape.Render(e, draw_pos);
+				
+				Shape.Render(e, draw_pos, proj.Distance());
 			}
 		}
 	}
 	
 	void TickShapes()
 	{
+		int size = Shapes.Size();
+		if (size < 1)	return;
 		for (int i = 0; i < Shapes.Size(); i++)
 		{
 			let Shape = Shapes[i];
 			if (Shape)	Shape.Tick();
 		}
+	}
+	
+	// Cleans out any null or destroyed shapes. For convenience, it attempts to
+	// tick the shape and if it's destroyed immediately afterwards, it's simply
+	// not included. This way we're only iterating through the array once.
+	void CleanShapes()
+	{
+		int size = Shapes.Size();
+		if (size < 1)	return;
+		
+		Array<MCHudShape> temp; temp.Clear();
+		for (int i = 0; i < size; i++)
+		{
+			let Shape = Shapes[i];
+			if (Shape)
+			{
+				Shape.Tick();
+				if (Shape && !Shape.bDESTROYED)
+					temp.Push(Shape);
+			}
+		}
+		Shapes.Move(temp);
 	}
 	
 	void RemoveShape(MCHudShape mo)
@@ -87,7 +122,9 @@ extend class MCHandler
 		}
 	}
 	
-	MCHudShape AddShape(Actor target, Actor caller, String texname, Vector2 pos = (0,0), double rot = 0.0, Vector2 scale = (1, 1))
+	MCHudShape AddShape(Actor target, Actor caller, String texname, 
+	Vector2 pos = (0,0), double rot = 0.0, Vector2 scale = (1, 1), name cv = '',
+	double distmin = 0.0, double distmax = 0.0)
 	{
 		TextureID tex = TexMan.CheckForTexture(texname,TexMan.Type_Any);
 		if (!target || !caller || !tex)
@@ -96,7 +133,7 @@ extend class MCHandler
 			return null;
 		}
 
-		MCHudShape Shape = MCHudShape.Create(target, caller,  texname, pos, rot, scale);
+		MCHudShape Shape = MCHudShape.Create(target, caller,  texname, pos, rot, scale, cv, distmin, distmax);
 		
 		if (Shape)
 		{
@@ -123,6 +160,7 @@ Class MCHudShape play
 {
 	private Vector2 siz; 		//
 	Vector2 pos, scale;			// offset & scale
+	double distmin, distmax;
 	double rot, alpha;			// rotation + alpha
 	String texname;				// Texture name
 	TextureID tex;
@@ -130,31 +168,43 @@ Class MCHudShape play
 	Shape2DTransform trans;
 	Actor target;				// Used for positioning.
 	Actor caller;				// 
-	bool active;
+	name check;
+	bool active, scaling;
 	
-	static MCHudShape Create(Actor target, Actor caller, String texname, Vector2 pos, double rot = 0.0, Vector2 scale = (1, 1))
+	static MCHudShape Create(Actor target, Actor caller, String texname, 
+	Vector2 pos, double rot = 0.0, Vector2 scale = (1, 1), name cv = '', 
+	double distmin = 0.0, double distmax = 0.0)
 	{
 		TextureID tex = TexMan.CheckForTexture(texname,TexMan.Type_Any);
-		if (!target || !caller || !tex)	return null;
+		if (!target || !caller || !tex)	return null;					
 		
 		let hud = new('MCHudShape');
 		if (hud)
 		{
-			hud.Update(target, caller, texname, pos, rot, scale);
+			hud.Update(target, caller, texname, pos, rot, scale, cv, distmin, distmax);
 			hud.Init();
 		}
 		return hud;
 	}
 	
-	void Update(Actor target, Actor caller, String texname, Vector2 pos, double rot = 0.0, Vector2 scale = (1, 1))
+	void Update(Actor target, Actor caller, String texname, Vector2 pos, 
+	double rot = 0.0, Vector2 scale = (1, 1), name cv = '',
+	double distmin = 0.0, double distmax = 0.0)
 	{
 		self.target = target;
 		self.caller = caller;
-		self.SetTexture(texname);
+		self.SetTexture(texname, false);
 		self.pos = pos;
 		self.rot = rot;
 		self.scale = scale;
 		self.alpha = 1.0;
+		self.distmin = distmin;
+		self.distmax = distmax;
+		if (cv != '')	
+		{
+			self.check = cv;
+		}
+		self.scaling = (distmax != 0.0 && distmin != 0.0);
 	}
 	
 	protected void Init()
@@ -187,13 +237,24 @@ Class MCHudShape play
 		active = true;
 	}
 	
-	ui void Render( RenderEvent e, Vector2 drawpos )
+	ui void Render( RenderEvent e, Vector2 drawpos, double distance)
 	{	
-		trans.Clear();
-		if (!active || alpha <= 0.0 || bDESTROYED)
+		if (!active || bDESTROYED || alpha <= 0.0 || distance < 1.0)
 			return;
+		trans.Clear();
 		
-		trans.Scale((scale.x, scale.y));
+		//scale = 300.0 / proj.Distance();
+		
+		Vector2 ts = scale;
+		/*
+		if (scaling)
+		{
+			ts *= Max(0.5, 300.0 / distance);
+		}
+		*/
+		trans.Scale((ts.x, ts.y));
+		
+		//trans.Scale(scale);
 		trans.Rotate(rot);
 		trans.Translate(drawpos);
 		
@@ -209,15 +270,24 @@ Class MCHudShape play
 			Destroy();
 	}
 	
-	bool SetTexture(string texname)
+	bool SetTexture(string texname, bool doinit = true)
 	{
 		TextureID tex = TexMan.CheckForTexture(texname,TexMan.Type_Any);
 		if (tex)
 		{
 			self.texname = texname;
 			self.tex = tex;
+			if (doinit)	
+				self.Init();
 			return true;
 		}
 		return false;
 	}
+	/*
+	override void OnDestroy()
+	{
+		Console.Printf("%s destroyed", dname);
+		Super.OnDestroy();
+	}
+	*/
 }

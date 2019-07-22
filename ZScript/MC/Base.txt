@@ -97,7 +97,12 @@ Class MCHandlerStatic : StaticEventHandler
 }
 
 //==============================================================================
+// Non-static handler.
 //
+// This is information that's only necessary for when a map is loaded. None of
+// the data is carried over into other maps, though it is preserved on said map
+// if it's a hub map. Otherwise, transitioning to a new map will destroy the
+// handler + info.
 //==============================================================================
 
 Class MCHandler : EventHandler
@@ -142,11 +147,8 @@ Class MCHandler : EventHandler
 		ProcessHudElements(e);
 	}
 
-	
 	override void WorldTick()
 	{
-		TickShapes();
-	
 		// Clear the lists every TimeTrigger seconds of null pointers.
 		Timer++;
 		if (Timer >= TimeTrigger)
@@ -179,6 +181,11 @@ Class MCHandler : EventHandler
 			Missiles.Clean();
 			Tracker.Clean();
 			Items.Clean();
+			CleanShapes(); //Automatically ticks all valid shapes.
+		}
+		else
+		{
+			TickShapes();
 		}
 	}
 	
@@ -197,6 +204,8 @@ Class MCHandler : EventHandler
 	// tracking so we don't have to rely on iterators. As Graf Zahl stated,
 	// an array will go much farther to optimize the crap out of searching
 	// over using an iterator in almost all circumstances.
+	// Slowdowns are inevitable if the arrays grow huge, but that's to be
+	// expected of a lot of one type of thing. But at least it'll be efficient.
 	override void WorldThingSpawned(WorldEvent e)
 	{
 		Actor mo = e.thing;

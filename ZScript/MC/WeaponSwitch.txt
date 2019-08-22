@@ -226,6 +226,8 @@ Class MCWeaponList play
 		int size = Weapons.Size();
 		Weapon wep = player.ReadyWeapon;
 		Weapon pend = player.PendingWeapon;
+		
+		
 		// No weapon or not in the array. Try to find one.
 		if (!wep || Weapons.Find(wep.GetClass()) >= size)
 		{
@@ -244,28 +246,39 @@ Class MCWeaponList play
 		// is valid for switching.
 		int index = Weapons.Find(wep.GetClass());
 		int i = index;
+		int pi = i;
+		int failsafe = 10;
 		do
 		{
+			pi = i;
 			if (prev)
 			{
 				if (--i < 0)
+				{
 					i = size - 1;
+					failsafe--;
+				}
 			}
 			else
 			{
 				if (++i >= size)
+				{
 					i = 0;
+					failsafe--;
+				}
 			}
 			
 			let next = Weapon(plr.FindInventory(Weapons[i]));
-			if (pend != WP_NOCHANGE && pend == next)	continue;
+			
+			if (pi == i)	return null;
+			
+			if (pend != WP_NOCHANGE || pend == next)	continue;
 			
 			if (CheckWeaponValid(next))
-			{
 				return next;
-			}
+			
 		} 
-		while (i != index);
+		while (failsafe > 0 && i != index);
 		return null;
 	}
 	

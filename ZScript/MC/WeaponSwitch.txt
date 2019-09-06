@@ -267,10 +267,9 @@ Class MCWeaponList play
 					failsafe--;
 				}
 			}
+			if (i == pi)	return null;
 			
 			let next = Weapon(plr.FindInventory(Weapons[i]));
-			
-			if (pi == i)	return null;
 			
 			if (pend != WP_NOCHANGE || pend == next)	continue;
 			

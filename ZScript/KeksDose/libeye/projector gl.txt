@@ -65,9 +65,23 @@ class Le_GlScreen : Le_ProjScreen {
 	}
 	
 	override void ProjectWorldPos (vector3 world_pos) {
-		diff		= levellocals.vec3diff(view_pos, world_pos);
-		proj_pos	= (diff dot right_in, diff dot down_in);
-		depth		= diff dot forw_in;
+		diff			= levellocals.vec3diff(view_pos, world_pos);
+		proj_pos		= (diff dot right_in, diff dot down_in);
+		depth			= diff dot forw_in;
+	}
+	
+	override void ProjectActorPos (Actor mo, vector3 offset, double t) {
+		let inter_pos	= mo.prev + t * (mo.pos - mo.prev);
+		diff			= levellocals.vec3diff(view_pos, inter_pos + offset);
+		proj_pos		= (diff dot right_in, diff dot down_in);
+		depth			= diff dot forw_in;
+	}
+	
+	override void ProjectActorPosPortal (Actor mo, vector3 offset, double t) {
+		let inter_pos	= mo.prev + t * levellocals.vec3diff(mo.prev, mo.pos);
+		diff			= levellocals.vec3diff(view_pos, inter_pos + offset);
+		proj_pos		= (diff dot right_in, diff dot down_in);
+		depth			= diff dot forw_in;
 	}
 	
 	override vector2 ProjectToNormal () const {

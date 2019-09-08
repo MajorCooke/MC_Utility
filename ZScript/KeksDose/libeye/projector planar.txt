@@ -50,6 +50,16 @@ class Le_SwScreen : Le_ProjScreen {
 		-	pixel_stretch * diff.z / tan_fov_2.y);
 	}
 	
+	override void ProjectActorPos (Actor mo, vector3 offset, double t) {
+		let inter_pos = mo.prev + t * (mo.pos - mo.prev);
+		ProjectWorldPos(inter_pos + offset);
+	}
+	
+	override void ProjectActorPosPortal (Actor mo, vector3 offset, double t) {
+		let inter_pos = mo.prev + t * levellocals.vec3diff(mo.prev, mo.pos);
+		ProjectWorldPos(inter_pos + offset);
+	}
+	
 	override vector2 ProjectToNormal () const {
 		return proj_pos / depth;
 	}

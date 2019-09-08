@@ -45,7 +45,7 @@ extend class MCHandler
 		
 		proj.CacheResolution();
 		proj.CacheFov(players[consoleplayer].fov);
-		proj.OrientForRenderOverlay(e);
+		proj.OrientForRenderUnderlay(e);
 		proj.BeginProjection();
 		
 		
@@ -123,8 +123,9 @@ extend class MCHandler
 	}
 	
 	MCHudShape AddShape(Actor target, Actor caller, String texname, 
-	Vector2 pos = (0,0), double rot = 0.0, Vector2 scale = (1, 1), name cv = '',
-	double distmin = 0.0, double distmax = 0.0)
+	Vector2 pos = (0,0), double rot = 0.0, 
+	Vector2 scale = (1,1), double scalemin = 1.0, double scalemax = 1.0,
+	name cv = '', double distmin = 0.0, double distmax = 0.0)
 	{
 		TextureID tex = TexMan.CheckForTexture(texname,TexMan.Type_Any);
 		if (!target || !caller || !tex)
@@ -133,23 +134,37 @@ extend class MCHandler
 			return null;
 		}
 
-		MCHudShape Shape = MCHudShape.Create(target, caller,  texname, pos, rot, scale, cv, distmin, distmax);
-		
-		if (Shape)
+		let hud = new('MCHudShape');
+		if (hud)
 		{
+			hud.alpha = 1.0;
+			
+			hud.target = target;
+			hud.caller = caller;
+			hud.SetTexture(texname, false);
+			hud.pos = pos;
+			hud.rot = rot;
+			hud.scale = scale;
+			hud.scalemin = scalemin;
+			hud.scalemax = scalemax;
+			if (cv != '')	hud.check = cv;
+			hud.distmin = abs(distmin);
+			hud.distmax = abs(distmax);
+			hud.Init();
+			
 			int size = Shapes.Size();
 			
 			if (size < 1)
 			{
-				Shapes.Push(Shape);
-				return Shape;
+				Shapes.Push(hud);
+				return hud;
 			}
 			
 			int pos = Shapes.Find(null);
-			if (pos < size)	Shapes[pos] = Shape;
-			else			Shapes.Push(Shape);
+			if (pos < size)	Shapes[pos] = hud;
+			else			Shapes.Push(hud);
 		}
-		return Shape;
+		return hud;
 	}
 }
 
@@ -159,7 +174,8 @@ extend class MCHandler
 Class MCHudShape play
 {
 	private Vector2 siz; 		//
-	Vector2 pos, scale;			// offset & scale
+	Vector2 pos, scale; 
+	double scalemin, scalemax;	// offset & scale
 	double distmin, distmax;
 	double rot, alpha;			// rotation + alpha
 	String texname;				// Texture name
@@ -169,45 +185,9 @@ Class MCHudShape play
 	Actor target;				// Used for positioning.
 	Actor caller;				// 
 	name check;
-	bool active, scaling;
+	bool active;
 	
-	static MCHudShape Create(Actor target, Actor caller, String texname, 
-	Vector2 pos, double rot = 0.0, Vector2 scale = (1, 1), name cv = '', 
-	double distmin = 0.0, double distmax = 0.0)
-	{
-		TextureID tex = TexMan.CheckForTexture(texname,TexMan.Type_Any);
-		if (!target || !caller || !tex)	return null;					
-		
-		let hud = new('MCHudShape');
-		if (hud)
-		{
-			hud.Update(target, caller, texname, pos, rot, scale, cv, distmin, distmax);
-			hud.Init();
-		}
-		return hud;
-	}
-	
-	void Update(Actor target, Actor caller, String texname, Vector2 pos, 
-	double rot = 0.0, Vector2 scale = (1, 1), name cv = '',
-	double distmin = 0.0, double distmax = 0.0)
-	{
-		self.target = target;
-		self.caller = caller;
-		self.SetTexture(texname, false);
-		self.pos = pos;
-		self.rot = rot;
-		self.scale = scale;
-		self.alpha = 1.0;
-		self.distmin = distmin;
-		self.distmax = distmax;
-		if (cv != '')	
-		{
-			self.check = cv;
-		}
-		self.scaling = (distmax != 0.0 && distmin != 0.0);
-	}
-	
-	protected void Init()
+	void Init()
 	{
 		flat = new("Shape2D");
 		
@@ -239,22 +219,20 @@ Class MCHudShape play
 	
 	ui void Render( RenderEvent e, Vector2 drawpos, double distance)
 	{	
-		if (!active || bDESTROYED || alpha <= 0.0 || distance < 1.0)
+		if (!active || bDESTROYED || alpha <= 0.0 || distance < 1.0 || scale.x == 0.0 || scale.y == 0.0)
 			return;
 		trans.Clear();
 		
-		//scale = 300.0 / proj.Distance();
-		
 		Vector2 ts = scale;
-		/*
-		if (scaling)
+		if (distmax > distmin)
 		{
-			ts *= Max(0.5, 300.0 / distance);
+			if (scalemax > scalemin)
+				ts *= Clamp(distmax / distance, scalemin, scalemax);
+			else
+				ts *= Max(scalemin, distmax / distance);
 		}
-		*/
-		trans.Scale((ts.x, ts.y));
 		
-		//trans.Scale(scale);
+		trans.Scale(ts);
 		trans.Rotate(rot);
 		trans.Translate(drawpos);
 		

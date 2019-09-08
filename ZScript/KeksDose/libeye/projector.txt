@@ -60,6 +60,14 @@ class Le_ProjScreen {
 			event.viewroll));
 	}
 	
+	ui void OrientForRenderUnderlay (RenderEvent event) {
+		Reorient(
+			event.viewpos, (
+			event.viewangle,
+			event.viewpitch,
+			event.viewroll));
+	}
+	
 	void OrientForPlayer (PlayerInfo player) {
 		Reorient(
 			player.mo.vec3offset(0, 0, player.viewheight), (
@@ -81,6 +89,17 @@ class Le_ProjScreen {
 	
 	virtual void	BeginProjection	() {}
 	virtual void	ProjectWorldPos	(vector3 world_pos) {}
+	virtual void	ProjectActorPos (
+	Actor	mo,
+	vector3	offset = (0,0,0),
+	double	t = 1) {}
+	
+	// kd: Portal aware version.
+	virtual void	ProjectActorPosPortal (
+	Actor	mo,
+	vector3	offset = (0,0,0),
+	double	t = 1) {}
+	
 	virtual vector2	ProjectToNormal	() const { return (0, 0); }
 	virtual vector2	ProjectToScreen	() const { return (0, 0); }
 	

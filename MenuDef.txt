@@ -1,7 +1,6 @@
 AddOptionMenu "OptionsMenu"
 {
-	StaticText " "
-	Submenu "MC Utility", "MCUtilityOptions"
+	Submenu "MC Utility Options", "MCUtilityOptions"
 }
 
 OptionMenu "MCUtilityOptions"

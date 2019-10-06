@@ -1,26 +1,3 @@
-// [MC] Code based off of Marisa Kirisame's NotHudMessage classes. This is needed
-// to display the weapon tag. Long, arduous and tiresome work-around is just that...
-// UGH.
-Class QueuedWeapon
-{
-	Weapon weap;
-	int timestamp;
-	static clearscope QueuedWeapon Create(Weapon next)
-	{
-		if (!next)	return null;
-		let q = new('QueuedWeapon');
-		q.weap = next;
-		q.timestamp = gametic;
-		return q;
-	}
-	
-	ui void PrintTag()
-	{
-		if (weap != null)
-			weap.DisplayNameTag();
-	}
-}
-
 //==============================================================================
 //==============================================================================
 // MCWeaponList
@@ -62,7 +39,7 @@ Class MCWeaponList play
 		}
 		
 		// Now we have all the weapons, sort through all of them.
-		// Also, for future reference:
+		// For future reference, the prefix legend is as follows:
 		// Un = Unsorted
 		// We = Sorted Weapon
 		
@@ -78,7 +55,8 @@ Class MCWeaponList play
 		// ------||||
 		// -------|||
 		// --------||
-		// Where each time, the array is started one step closer to the end.
+		// Where each time, the iteration is started one step closer to the end
+		// of the array.
 		
 		int size = Weapons.Size();
 		for (int i = 0; i < size - 1; i++)
@@ -290,23 +268,42 @@ Class MCWeaponList play
 	}
 }
 
-//==============================================================================
-//==============================================================================
-// Now for the handler itself, the code is handled in here via extension.
-//==============================================================================
-//==============================================================================
-
-extend class MCHandlerStatic
+//------------------------------------------------------------------------------
+// QueuedWeapon is based off of Marisa Kirisame's NotHudMessage classes. 
+// This is needed to display the weapon tag.
+//------------------------------------------------------------------------------
+Class QueuedWeapon
 {
-	// Most of the code here is private because we don't want anything calling
-	// it when not in game.
+	Weapon weap;
+	int timestamp;
+	static clearscope QueuedWeapon Create(Weapon next)
+	{
+		if (!next)	return null;
+		
+		let q = new('QueuedWeapon');
+		q.weap = next;
+		q.timestamp = gametic;
+		return q;
+	}
+	
+	ui void PrintTag()
+	{
+		if (weap != null)
+			weap.DisplayNameTag();
+	}
+}
 
+//------------------------------------------------------------------------------
+// Handler extensions. Deals with tags and weapon switching in one.
+//------------------------------------------------------------------------------
+extend class MCHandler
+{
 	// PostUITick
 	private ui void PrintWeaponTags()
 	{
 		// load 'em up
-		for ( int i=0; i<queue.size(); i++ )
-			if ( queue[i].timestamp >= gametic )
+		for ( int i=0; i < queue.size(); i++ )
+			if (queue[i].timestamp >= gametic)
 				queue[i].PrintTag();
 	}
 	
@@ -320,7 +317,7 @@ extend class MCHandlerStatic
 			i--;
 		}
 	}
-	
+
 	// InputProcess
 	// This overrides the 'slot <X>/weapnext/weapprev' commands and comes first.
 	// This is where it all begins.
@@ -412,11 +409,7 @@ extend class MCHandlerStatic
 		let ready = player.ReadyWeapon;
 		let pending = player.PendingWeapon;
 		
-		if (!WeaponList)	
-		{	
-			WeaponList = new('MCWeaponList');
-			WeaponList.Init();
-		}
+		UpdateWeaponList();
 		
 		Weapon next = null;
 		if (commandStrings[1] == 'next')

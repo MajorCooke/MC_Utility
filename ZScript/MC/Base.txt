@@ -3,6 +3,10 @@
 #include "ZScript/MC/ActorDisplay.txt"
 #include "ZScript/MC/Relations.txt"
 
+// A simple set or wrappers for making ACS-style HUD messages.
+// Calling these is as simple as:
+// MCMsg.PlainMsg(...);
+
 Class MCMsg play
 {
 	static void PlainMsg( Name fnt, string txt, Vector2 pos, Vector2 vsize = (0,0), int talign = -1, Vector2 balign = (0,0), int color = Font.CR_UNTRANSLATED, Vector3 time = (0,0,0), int wrap = 0, uint id = 0, int layer = BaseStatusBar.HUDMSGLayer_OverHUD )
@@ -15,12 +19,21 @@ Class MCMsg play
 		notHudMessageHandler.PlainMsg("smallfont", "", (0,0), id: id);
 	}
 }
-
+//==============================================================================
+// MCHandlerStatic is simply used for loading up and maintaining the weapon 
+// slots and priorities only. Avoids the need to repopulate the weapon switching
+// data when it can just be done once.
+//
+// Static event handlers should be avoided otherwise. Eventually, the main
+// weapon switching itself will be moved to MCHandler so changes this won't be
+// compromised by saved games. As in, the changes will kick in at the end of a
+// map instead of needing to start a new game.
+//==============================================================================
 Class MCHandlerStatic : StaticEventHandler
 {
-	private Array<QueuedWeapon> Queue;
 	private MCWeaponList WeaponList;
 	private bool InGame;
+	private MCHandler Event;
 	
 	override void OnRegister()
 	{
@@ -36,64 +49,31 @@ Class MCHandlerStatic : StaticEventHandler
 	
 	override void WorldLoaded(WorldEvent e)
 	{
-		Queue.Clear();
+		// Always refresh when loading from a saved game to reflect changes.
 		if (!WeaponList || e.IsSaveGame)
-		{
-			WeaponList = new('MCWeaponList');
-			WeaponList.Init();
-		}
+			WeaponList = FetchWeaponList(e.IsSaveGame);
+		
 		InGame = true;
 	}
 	
 	override void WorldUnloaded(WorldEvent e)
 	{
-		Queue.Clear();
 		InGame = false;
-	}
-	
-	override void NetworkProcess(ConsoleEvent e)
-	{
-		if (!CheckInGame())	return;
-		
-		int num = e.Player;
-		let plr = players[num].mo;
-		if (!plr)	return;
-		
-		Array<String> strings;
-		e.Name.Split (strings, ":");
-		
-		if (strings.Size() > 1)
-		{
-			if (strings[0] == 'MC_SelectWeapon')
-			{
-				Weapon next = ChangeWeapons(e);
-				if (next) 
-				{
-					QueuedWeapon tosend = QueuedWeapon.Create(next);
-					QueueWeapon(tosend);
-				}
-			}
-		}
-	}
-	
-	override void WorldTick()
-	{
-		if (!CheckInGame())	return;
-		TickWeaponTags();
-	}
-	
-	override void PostUiTick()
-	{
-		if (!CheckInGame())	return;
-		PrintWeaponTags();
 	}
 	
 	//--------------------------------------------------------------------------
 	// Custom functions
 	//--------------------------------------------------------------------------
-	static MCHandlerStatic Fetch()
+	// Grabs the weapon list. Force will completely refresh it.
+	MCWeaponList FetchWeaponList(bool force = false)
 	{
-		return MCHandlerStatic(Find("MCHandlerStatic"));
+		MCWeaponList WL = WeaponList;
+		if (!WL || force)
+		{
+			WL = new('MCWeaponList');
+			WL.Init();
+		}
+		return WL;
 	}
 	
 	bool CheckInGame() const
@@ -101,11 +81,9 @@ Class MCHandlerStatic : StaticEventHandler
 		return (InGame && gamestate == GS_LEVEL);
 	}
 	
-	static play void QueueWeapon( QueuedWeapon tosend )
+	static MCHandlerStatic Fetch()
 	{
-		MCHandlerStatic local = MCHandlerStatic.Fetch();
-		if ( !local ) return;
-		local.Queue.Push(tosend);
+		return MCHandlerStatic(Find("MCHandlerStatic"));
 	}
 }
 
@@ -120,15 +98,6 @@ Class MCHandlerStatic : StaticEventHandler
 
 Class MCHandler : EventHandler
 {
-	const Second = 35;
-	const TimeTrigger = Second * 5;
-
-	AArray Monsters, DeadMonsters, Missiles, Tracker, Items;
-	private int Timer;
-	private Array<QueuedWeapon> Queue;
-	private MCWeaponList WeaponList;
-	private bool InGame;
-	
 	enum EKeybindOrders
 	{
 		KBO_REGULARONLY = 0,
@@ -136,12 +105,38 @@ Class MCHandler : EventHandler
 		KBO_REGULAROVERAUTOMAP = 2,
 		KBO_AUTOMAPOVERREGULAR = 3,
 	}
+	const Second = 35;
+	const TimeTrigger = Second * 5;
+
+	AArray Monsters, DeadMonsters, Missiles, Tracker, Items;
+	private int Timer;
+	private Array<QueuedWeapon> Queue;
+	private MCWeaponList WeaponList;
+	private MCHandlerStatic SEvent;
+	private bool InGame;
 	
 	//--------------------------------------------------------------------------
+	// Custom functions
 	//--------------------------------------------------------------------------
+	static MCHandler Fetch()
+	{
+		return MCHandler(Find("MCHandler"));
+	}
+	
 	bool IsPlayerPawn(Actor mo)
 	{
 		return (!mo || mo is "PlayerPawn" || mo.player);
+	}
+	
+	private void UpdateWeaponList()
+	{
+		if (!SEvent)	SEvent = MCHandlerStatic.Fetch();
+		WeaponList = SEvent.FetchWeaponList();
+	}
+	
+	void QueueWeaponTag(QueuedWeapon tosend)
+	{
+		if (tosend)	Queue.Push(tosend);
 	}
 	
 	//--------------------------------------------------------------------------
@@ -160,8 +155,15 @@ Class MCHandler : EventHandler
 		ProcessHudElements(e);
 	}
 
+	override void PostUiTick()
+	{
+		PrintWeaponTags();
+	}
+
 	override void WorldTick()
 	{
+		TickWeaponTags();
+	
 		// Clear the lists every TimeTrigger seconds of null pointers.
 		Timer++;
 		if (Timer >= TimeTrigger)
@@ -209,6 +211,31 @@ Class MCHandler : EventHandler
 		Missiles = AArray.Create();
 		Tracker = AArray.Create();
 		Items = AArray.Create();
+		Queue.Clear();
+		UpdateWeaponList();
+	}
+	
+	override void NetworkProcess(ConsoleEvent e)
+	{
+		int num = e.Player;
+		let plr = players[num].mo;
+		if (!plr || plr.health < 1)	return;
+		
+		Array<String> strings;
+		e.Name.Split (strings, ":");
+		
+		if (strings.Size() > 1)
+		{
+			if (strings[0] == 'MC_SelectWeapon')
+			{
+				Weapon next = ChangeWeapons(e);
+				if (next) 
+				{
+					QueuedWeapon tosend = QueuedWeapon.Create(next);
+					QueueWeaponTag(tosend);
+				}
+			}
+		}
 	}
 	
 	//--------------------------------------------------------------------------
@@ -374,14 +401,6 @@ Class MCHandler : EventHandler
 			}
 		}
 		return false;
-	}
-	
-	//--------------------------------------------------------------------------
-	// Custom functions
-	//--------------------------------------------------------------------------
-	static MCHandler Fetch()
-	{
-		return MCHandler(Find("MCHandler"));
 	}
 }
 

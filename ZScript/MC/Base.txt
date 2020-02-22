@@ -2,6 +2,7 @@
 #include "ZScript/MC/Constants.txt"
 #include "ZScript/MC/ActorDisplay.txt"
 #include "ZScript/MC/Relations.txt"
+#include "ZScript/MC/Morph.txt"
 
 // A simple set or wrappers for making ACS-style HUD messages.
 // Calling these is as simple as:
@@ -219,7 +220,52 @@ Class MCHandler : EventHandler
 	{
 		int num = e.Player;
 		let plr = players[num].mo;
-		if (!plr || plr.health < 1)	return;
+		if (!plr)	return;
+		
+		if (e.Name == 'ClearMonsters')
+		{
+			int size = Monsters.Size();
+			if (!Monsters || size < 1)	return;
+			
+			int count = 0;
+			for (int i = 0; i < size; i++)
+			{
+				Actor mo = Monsters.Actors[i];
+				if (mo && mo.bISMONSTER && mo.health > 0)
+				{
+					count++;
+					mo.ClearCounters();
+					mo.Destroy();
+				}
+			}
+			Console.Printf("%d monsters destroyed.", count);
+			return;
+		}
+		if (plr.health < 1)	return;
+		
+		if (e.Name == 'PullItems')
+		{
+			let it = ThinkerIterator.Create("Inventory");
+			Inventory mo = null;
+			while (mo = Inventory(it.Next()))
+			{
+				if (!mo || mo.owner || mo.special || mo is 'DoomKey' || !mo.bDROPPED)
+					continue;
+					
+				mo.Warp(plr, (plr.radius + mo.radius) * 2,0,0,random(0,359),WARPF_NOCHECKPOSITION);
+			}
+		}
+		
+		if (e.Name == 'DontThrust')
+		{
+			plr.bDONTTHRUST = !(plr.bDONTTHRUST);
+			
+			if (plr.bDONTTHRUST)	Console.Printf("DontThrust ON");
+			else					Console.Printf("DontThrust OFF");
+			return;
+		}
+		
+		
 		
 		Array<String> strings;
 		e.Name.Split (strings, ":");
@@ -315,118 +361,59 @@ Class MCHandler : EventHandler
 	
 	//==========================================================================
 	//==========================================================================
-	// This is where KEYCONF Buster begins.
+	// See WeaponSwitch.txt
 	override bool InputProcess(InputEvent ev)
 	{
-		if (ev.Type == InputEvent.Type_KeyDown)
-		{
-			int index = consoleplayer;
-			PlayerInfo player = players[index];
-			
-			// Make sure they exist, and they desire this.
-			if (player)
-			{
-				let cv = CVar.GetCVar('MC_KeyconfWeaponBuster', player);
-				if (!cv || !cv.GetInt())
-					return false;
-			}
-			else return false;
-			
-			// They exist, but don't operate on dead/morphed players.
-			let plr = player.mo;
-			if (!plr || plr.health < 1 || plr.FindInventory("PowerMorph",true))
-				return false;
-			CVar KBPriority = CVar.GetCvar('MC_KBPriority', player);
-			static const String KeyBindsCCMDs [] = {
-				"slot 1", "slot 2", "slot 3", "slot 4", "slot 5",
-				"slot 6", "slot 7", "slot 8", "slot 9", "slot 0",
-				"weapnext", "weapprev"	};
-			static const String KeyBindsNetEvents [] = {
-				"slot:1", "slot:2", "slot:3", "slot:4", "slot:5",
-				"slot:6", "slot:7", "slot:8", "slot:9", "slot:0",
-				"next", "prev"	};
-			
-			// Find the key and translate it from the raw command to an 
-			// event-friendly string. Makes splitting it easier.
-			int bind1 = 0, bind2 = 0;
-			for (int i = 0; i < KeyBindsCCMDs.Size(); i++) 
-			{
-				// Bindings is a global struct. Definition in menu.txt inside GZDoom.pk3.
-				// Get the keys that are bound to this action.
-				if (automapactive)
-				{
-					int prior = (KBPriority != null) ? KBPriority.GetInt() : KBO_AUTOMAPONLY;
-					
-					if (prior == KBO_AUTOMAPONLY || prior == KBO_AUTOMAPOVERREGULAR)
-						[bind1, bind2] = AutomapBindings.GetKeysForCommand (KeyBindsCCMDs [i]);
-					else
-						[bind1, bind2] = Bindings.GetKeysForCommand (KeyBindsCCMDs [i]);
-					
-					
-					// If we want filling in for unbound keys, fetch them from
-					// the other binding set.
-					if (prior == KBO_AUTOMAPOVERREGULAR)
-					{
-						if (bind1 == 0 || bind2 == 0)
-						{
-							int t1 = 0, t2 = 0;
-							[t1, t2] = Bindings.GetKeysForCommand (KeyBindsCCMDs [i]);
-							if (bind1 == 0)	bind1 = t1;
-							if (bind2 == 0)	bind2 = t2;
-						}
-					}
-					else if (prior == KBO_REGULAROVERAUTOMAP)
-					{
-						if (bind1 == 0 || bind2 == 0)
-						{
-							int t1 = 0, t2 = 0;
-							[t1, t2] = AutomapBindings.GetKeysForCommand (KeyBindsCCMDs [i]);
-							if (bind1 == 0)	bind1 = t1;
-							if (bind2 == 0)	bind2 = t2;
-						}
-					}
-				}
-				else
-					[bind1, bind2] = Bindings.GetKeysForCommand (KeyBindsCCMDs [i]);
-				
-				if (ev.KeyScan == bind1 || ev.KeyScan == bind2) 
-				{
-					//Console.Printf("%s", KeyBindsNetEvents[i]);
-					// Calls NetworkEvent in Base.txt and assembles the command
-					// to call ChangeWeapons function below, and aborts the 
-					// rest of the input.
-					EventHandler.SendNetworkEvent(String.Format("MC_SelectWeapon:%s", KeyBindsNetEvents[i]));
-					return true;
-				}
-			}
-		}
-		return false;
+		return CheckInputWeaponChange(ev);
 	}
 }
 
-//==============================================================================
-//==============================================================================
-// AArray Class
-// Designed by Major Cooke
-//
-// The goal behind this is an adjustable actor array with functions for
-// maintaining and cleaning more easily.
-//==============================================================================
-//==============================================================================
+/*==============================================================================
+================================================================================
+ AArray Class
+ Designed by Major Cooke
+
+ The goal behind this is an adjustable actor array with functions for
+ maintaining and cleaning more easily. Note, this is meant for a more permanent
+ solution that is maintained over time, not so much for brief instantiation
+ within a function or similar unless it's a pointer fetched from another.
+ 
+ To use: 
+ 
+ 1. Declare a variable of type AArray and call the create function. Pass in an
+ optional size and/or class type to restrict the actors its tracking.
+ e.g. AArray arr = AArray.Create(-1, 'Zombieman');
+ 
+ 2. Add maintenance functions in whatever is using it if needed, i.e. a timer.
+ The Delete() function simply schedules a position for deletion by marking
+ the actor's spot as null. Once the timer hits the interval, do any maintenance
+ and call the AArray's Clean() function sometime during it.
+ 
+ Every 10 seconds, MCHandler above first makes sure alive/dead monsters are
+ properly sorted into the proper arrays first, then cleans out any nulls, 
+ reducing memory usage and optimizing future Find() calls. Better performance!
+ 
+ 3. You can then safely use Push() and Delete() as desired.
+================================================================================
+==============================================================================*/
 
 Class AArray
 {
-	const DefaultSize = 16;
-	protected Class<Actor> ClassType;
-	
+	Class<Actor> ClassType;	
 	Array<Actor> Actors;
 	
 	//--------------------------------------------------------------------------
-	// Initialization functions.
+	// Initialization function.
 	//--------------------------------------------------------------------------
 	static AArray Create(int size = -1, Name type = '')
 	{
 		AArray arr = new('AArray');
+		if (type != '')
+		{
+			Class<Actor> test = type;
+			if (!test)
+				Console.Printf("AArray warning: Ignoring invalid filter %s", type);
+		}
 		arr.Init(size, type);
 		return arr;
 	}
@@ -434,7 +421,6 @@ Class AArray
 	void Init(int size, Class<Actor> type)
 	{
 		ClassType = type;
-		
 		Actors.Clear();
 		
 		if (size > 0)
@@ -445,58 +431,21 @@ Class AArray
 	// Information.
 	//--------------------------------------------------------------------------
 	
-	int Size()	{	return Actors.Size();	}
+	int Size() const	{	return Actors.Size();	}
 	
-	//--------------------------------------------------------------------------
-	// Manipulation functions.
-	//--------------------------------------------------------------------------
-	void Push(Actor mo)
+	// Find an actor's position in the array.
+	// GZDoom cannot convert uint to int on return so it must be assigned first.
+	// Also, If nulls are not desired, return the size of the array.
+	int Find(Actor mo, bool nulls = true) const
 	{
-		// Make sure it exists and isn't restricted from insertion.
-		if (!mo || (ClassType != null && !(mo is ClassType)))	return;
-		Actors.Push(mo);
-	}
-	
-	void Delete(Actor mo)
-	{
-		int size = Actors.Size();
-		if (mo && size > 0)
-		{
-			int pos = Actors.Find(mo);
-			if (pos < size)
-				Actors[pos] = null;
-		}
-	}
-	
-	private int SetSize(int size)
-	{
-		int old = Actors.Size();
-		if (old == size)
-			return 0;
-		if (size < 1)
-		{
-			Actors.Clear();
-			return -old;
-		}
-		
-		Actors.Resize(size);
-		if (old < size)
-		{
-			for (int i = old; i < size; i++)
-				Actors[i] = null;
-		}
-		return old - size;
-	}
-	
-	// Apparently returns cannot convert from UInt to Int properly, GZDoom refuses
-	// to start up. So it must be assigned to variable first before being returned.
-	int Find(Actor mo)
-	{
+		if (!nulls && mo == null)
+			return Actors.Size();
 		int pos = Actors.Find(mo);
 		return pos;
 	}
 	
-	Actor FindActor(Actor mo)
+	// Actor version, returns an actor instead of a position.
+	Actor FindActor(Actor mo) const
 	{
 		int size = Actors.Size();
 		if (size < 1)
@@ -510,10 +459,45 @@ Class AArray
 		return ret;
 	}
 	
-	//==========================================================================
+	//--------------------------------------------------------------------------
+	// Manipulation functions.
+	//--------------------------------------------------------------------------
+	
+	// Make sure it exists and isn't restricted from insertion.
+	// If strict, only allow the specified actor class in.
+	// Else, allow inheritance.
+	void Push(Actor mo, bool strict = false)
+	{
+		if (mo && (ClassType == null || 
+			(mo.GetClass() == ClassType || (!strict && mo is ClassType))))
+			Actors.Push(mo);
+	}
+	
+	// Removes the actor and 'schedules' shrinking via a null.
+	void Delete(Actor mo, bool all = false)
+	{
+		int size = Actors.Size();
+		if (mo && size > 0)
+		{
+			// Eliminate all duplicates.
+			if (all) 
+				for (int i = 0; i < size; i++)
+					if (mo == Actors[i])
+						Actors[i] = null;
+			
+			// Just find one.
+			else	
+			{
+				int pos = Actors.Find(mo);
+				if (pos < size)
+					Actors[pos] = null;
+			}
+		}
+	}
+	
 	// Cleans up an array by copying all non-nulls to a temp array and overriding
-	// the original.
-	//==========================================================================
+	// the original. This is the most efficient way in ZScript so far, as it
+	// beats calling DynArray's Delete function over and over in performance.
 	void Clean()
 	{
 		int size = Actors.Size();
@@ -525,8 +509,37 @@ Class AArray
 			
 		Array<Actor> temp; temp.Clear();
 		for (int i = 0; i < size; i++)
-			if (Actors[i] != null)	temp.Push(Actors[i]);
-			
+		{
+			if (Actors[i] != null)
+				temp.Push(Actors[i]);
+		}	
 		Actors.Move(temp);
+	}
+	
+	// Removes all actors from the array.
+	void Clear() { Actors.Clear(); }
+	
+	//--------------------------------------------------------------------------
+	// Internal functions only.
+	//--------------------------------------------------------------------------
+	
+	private int SetSize(int size)
+	{
+		int old = Actors.Size();
+		if (old == size)
+			return 0;
+		
+		if (size < 1)
+		{
+			Actors.Clear();
+			return -old;
+		}
+		
+		Actors.Resize(size);
+		if (old < size)
+			for (int i = old; i < size; i++)
+				Actors[i] = null;
+		
+		return old - size;
 	}
 }

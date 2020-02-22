@@ -1,0 +1,115 @@
+// Health Armor Saver
+// By Major Cooke
+
+// See below this class for an example on how to use it.
+
+Class MCHealthArmorSaver play
+{
+	// Storing the actor's impossible due to switching of pointers pre-morph, 
+	// so the calling actor must be passed in by function at all times.
+	// Actor mo; 
+	private int HP;
+	private int Amount, MaxAmount;
+	private int AbsorbCount;
+	private int MaxAbsorb;
+	private int MaxFullAbsorb;
+	private int BonusCount;
+	private int ActualSaveAmount;
+	private Name ArmorType;
+	private double SavePercent;
+	private TextureID Icon;
+	
+	static MCHealthArmorSaver Create(Actor mo)
+	{
+		if (!mo)	return null;
+		let dha = new('MCHealthArmorSaver');
+		dha.StoreData(mo);
+		return dha;
+	}
+	
+	void StoreData(Actor mo)
+	{
+		if (!mo)	return;
+		
+		HP = Max(100, mo.Health);
+		
+		let armor = BasicArmor(mo.FindInventory('BasicArmor'));
+		if (armor && armor.ArmorType != 'None' && armor.ArmorType != '')
+		{
+			Amount = armor.Amount;
+			MaxAmount = armor.MaxAmount;
+			ArmorType = armor.ArmorType;
+			AbsorbCount = armor.AbsorbCount;
+			SavePercent = armor.SavePercent;
+			MaxAbsorb = armor.MaxAbsorb;
+			MaxFullAbsorb = armor.MaxFullAbsorb;
+			BonusCount = armor.BonusCount;
+			ActualSaveAmount = armor.ActualSaveAmount;
+			Icon = armor.Icon;
+		}
+	}
+	
+	void Restore(Actor mo)
+	{
+		if (!mo)	return;
+		
+		mo.A_SetHealth(HP);
+		let armor = BasicArmor(mo.FindInventory('BasicArmor'));
+		if (armor && armor.ArmorType != 'None' && armor.ArmorType != '')
+		{
+			armor.Amount = Amount;
+			armor.MaxAmount = MaxAmount;
+			armor.ArmorType = ArmorType;
+			armor.AbsorbCount = AbsorbCount;
+			armor.SavePercent = SavePercent;
+			armor.MaxAbsorb = MaxAbsorb;
+			armor.MaxFullAbsorb = MaxFullAbsorb;
+			armor.BonusCount = BonusCount;
+			armor.ActualSaveAmount = ActualSaveAmount;
+			armor.Icon = Icon;
+		}
+	}
+}
+
+//==============================================================================
+// Example
+// This is how D4D uses this to save armor, for now.
+//==============================================================================
+
+/*
+	//--------------------------------------------------------------------------
+	// First, override MorphPlayer on the main player class like so.
+	// This includes all checks already.
+	//--------------------------------------------------------------------------
+	
+	private MCHealthArmorSaver HPArmor;
+	override bool MorphPlayer(playerinfo activator, Class<PlayerPawn> spawntype, int duration, int style, Class<Actor> enter_flash, Class<Actor> exit_flash)
+	{	
+		let HPA = MCHealthArmorSaver.Create(self);
+		
+		bool morph = Super.MorphPlayer(activator, spawntype, duration, style, enter_flash, exit_flash);
+		if (morph)	
+			HPArmor = HPA;
+		
+		return morph;
+	}
+	
+	//--------------------------------------------------------------------------
+	// Second, override the PlayerThink function (or equivalent). 
+	// Check for morphs.
+	//--------------------------------------------------------------------------
+	override void PlayerThink()
+	{
+		Super.PlayerThink();
+		
+		let player = self.player;
+		if (HPArmor && player && player.mo == self)
+		{
+			HPArmor.Restore(self);
+			HPArmor = null;
+		}
+	}
+	
+	// That should be it. While you could override the unmorph function on the
+	// morph itself, this solution is global for all morphs.
+*/

@@ -1,8 +1,8 @@
-// Copyright (c) 2018 Benjamin Moir. All rights reserved.
-// This work is licensed under the terms of the MIT license.  
+// Copyright (c) 2017 Benjamin Moir. All rights reserved.
+// This work is licensed under the terms of the MIT license.
 // To obtain a copy, visit <https://opensource.org/licenses/MIT>.
 
-enum EASCII
+enum EASCIICodes
 {
     ASCII_NUL, // null
     ASCII_SOH, // start of heading

@@ -1,0 +1,18 @@
+
+// Code from PhantomBeta's Se7evidas mod
+#include "ZScript/PhantomBeta/Se7evidas/Constants.ZS"
+#include "ZScript/PhantomBeta/Se7evidas/Math.ZS"
+#include "ZScript/PhantomBeta/Se7evidas/Projectile.ZS"
+#include "ZScript/PhantomBeta/Se7evidas/CollisionHandling.ZS"
+#include "ZScript/PhantomBeta/Se7evidas/Linetracer.ZS"
+#include "ZScript/PhantomBeta/Se7evidas/Movement.ZS"
+#include "ZScript/PhantomBeta/Se7evidas/Trail.ZS"
+#include "ZScript/PhantomBeta/Se7evidas/FastRNG.ZS"
+#include "ZScript/PhantomBeta/Se7evidas/Ballistics.ZS"
+#include "ZScript/PhantomBeta/Se7evidas/ColDet.ZS"
+#include "ZScript/PhantomBeta/Se7evidas/GZDoomFuncs.ZS"
+#include "ZScript/PhantomBeta/Se7evidas/Physics.ZS"
+#include "ZScript/PhantomBeta/Se7evidas/Trigonometry.ZS"
+
+// Code by TheZombieKiller and PhantomBeta
+#include "ZScript/PhantomBeta/TZK/TZK_Include.ZS"

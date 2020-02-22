@@ -1,0 +1,10 @@
+class MC_ZFHandler ui {
+	virtual void buttonClickCommand(MC_ZFButton caller, string command) {
+	}
+	
+	virtual void buttonHeldCommand(MC_ZFButton caller, string command) {
+	}
+
+	virtual void elementHoverChanged(MC_ZFElement caller, string command, bool unhovered) {
+	}
+}

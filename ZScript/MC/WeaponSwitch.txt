@@ -12,6 +12,200 @@
 //==============================================================================
 //==============================================================================
 
+//------------------------------------------------------------------------------
+// Handler extensions. Deals with tags and weapon switching in one.
+//------------------------------------------------------------------------------
+extend class MCHandler
+{
+	// PostUITick
+	private ui void PrintWeaponTags()
+	{
+		// load 'em up
+		for ( int i=0; i < queue.size(); i++ )
+			if (queue[i].timestamp >= gametic)
+				queue[i].PrintTag();
+	}
+	
+	// WorldTick
+	private play void TickWeaponTags()
+	{
+		for (int i = 0; i < Queue.size(); i++)
+		{
+			if (Queue[i].timestamp >= gametic) continue;
+			Queue.Delete(i);
+			i--;
+		}
+	}
+
+	// InputProcess
+	// This overrides the 'slot <X>/weapnext/weapprev' commands and comes first.
+	// This is where it all begins.
+	private ui bool CheckInputWeaponChange(InputEvent ev)
+	{
+		if (ev.Type == InputEvent.Type_KeyDown)
+		{
+			int index = consoleplayer;
+			PlayerInfo player = players[index];
+			
+			// Make sure they exist, and they desire this.
+			if (player)
+			{
+				let cv = CVar.GetCVar('MC_KeyconfWeaponBuster', player);
+				if (!cv || !cv.GetInt())
+					return false;
+			}
+			else return false;
+			
+			// They exist, but don't operate on dead/morphed players.
+			let plr = player.mo;
+			if (!plr || plr.health < 1 || plr.FindInventory("PowerMorph",true))
+				return false;
+			CVar KBPriority = CVar.GetCvar('MC_KBPriority', player);
+			static const String KeyBindsCCMDs [] = {
+				"slot 1", "slot 2", "slot 3", "slot 4", "slot 5",
+				"slot 6", "slot 7", "slot 8", "slot 9", "slot 0",
+				"weapnext", "weapprev"	};
+			static const String KeyBindsNetEvents [] = {
+				"slot:1", "slot:2", "slot:3", "slot:4", "slot:5",
+				"slot:6", "slot:7", "slot:8", "slot:9", "slot:0",
+				"next", "prev"	};
+			
+			// Find the key and translate it from the raw command to an 
+			// event-friendly string. Makes splitting it easier.
+			int bind1 = 0, bind2 = 0;
+			for (int i = 0; i < KeyBindsCCMDs.Size(); i++) 
+			{
+				// Bindings is a global struct. Definition in menu.txt inside GZDoom.pk3.
+				// Get the keys that are bound to this action.
+				if (automapactive)
+				{
+					int prior = (KBPriority != null) ? KBPriority.GetInt() : KBO_AUTOMAPONLY;
+					
+					if (prior == KBO_AUTOMAPONLY || prior == KBO_AUTOMAPOVERREGULAR)
+						[bind1, bind2] = AutomapBindings.GetKeysForCommand (KeyBindsCCMDs [i]);
+					else
+						[bind1, bind2] = Bindings.GetKeysForCommand (KeyBindsCCMDs [i]);
+					
+					
+					// If we want filling in for unbound keys, fetch them from
+					// the other binding set.
+					if (prior == KBO_AUTOMAPOVERREGULAR)
+					{
+						if (bind1 == 0 || bind2 == 0)
+						{
+							int t1 = 0, t2 = 0;
+							[t1, t2] = Bindings.GetKeysForCommand (KeyBindsCCMDs [i]);
+							if (bind1 == 0)	bind1 = t1;
+							if (bind2 == 0)	bind2 = t2;
+						}
+					}
+					else if (prior == KBO_REGULAROVERAUTOMAP)
+					{
+						if (bind1 == 0 || bind2 == 0)
+						{
+							int t1 = 0, t2 = 0;
+							[t1, t2] = AutomapBindings.GetKeysForCommand (KeyBindsCCMDs [i]);
+							if (bind1 == 0)	bind1 = t1;
+							if (bind2 == 0)	bind2 = t2;
+						}
+					}
+				}
+				else
+					[bind1, bind2] = Bindings.GetKeysForCommand (KeyBindsCCMDs [i]);
+				
+				if (ev.KeyScan == bind1 || ev.KeyScan == bind2) 
+				{
+					//Console.Printf("%s", KeyBindsNetEvents[i]);
+					// Calls NetworkEvent in Base.txt and assembles the command
+					// to call ChangeWeapons function below, and aborts the 
+					// rest of the input.
+					EventHandler.SendNetworkEvent(String.Format("MC_SelectWeapon:%s", KeyBindsNetEvents[i]));
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	//==========================================================================
+	// ChangeWeapons
+	//
+	// Sets the forthcoming weapon based on the command sent to it. Applicable
+	// commands are:
+	// 
+	// slot # (0-9)
+	// weapnext
+	// weapprev
+	//==========================================================================
+	private Weapon ChangeWeapons(ConsoleEvent e)
+	{
+		int pnum = e.Player;
+		if (!playeringame[pnum])
+			return null;
+			
+		PlayerInfo player = players[pnum];
+
+		if (!player) // No player.
+			return null;
+
+		Array<String> commandStrings;
+		e.Name.Split (commandStrings, ":");
+		if (commandStrings.Size() < 2) // Return if the array contains less than two strings
+			return null;
+			
+		// At this point, we should have at minimum two strings in this form:
+		// [0] = MC_SelectWeapon
+		// [1] = <command>
+		// See InputProcess for the translations (from first to second array)
+		
+		let ready = player.ReadyWeapon;
+		let pending = player.PendingWeapon;
+		
+		UpdateWeaponList();
+		
+		Weapon next = null;
+		if (commandStrings[1] == 'next')
+		{
+			next = WeaponList.SetNextWeapon(player);
+		}
+		else if (commandStrings[1] == 'prev')
+		{
+			next = WeaponList.SetNextWeapon(player, true);
+		}
+		else if (commandStrings[1] == 'slot')
+		{
+			// Switching to a weapon in slot.
+			// MC_SelectWeapon:slot:#
+			int len = (commandStrings.Size() > 2) ? commandStrings[2].Length() : 0;
+			if (len < 1)	return null;
+			
+			String s = commandStrings[2];
+			if (len > 1)	s = s.CharAt(len - 1);
+			int num = s.ToInt();
+			
+			//Have a number.
+			next = WeaponList.SetSlotWeapon(player, num);
+		}
+		if (!next)	next = ready;
+		if (next && next != ready)	
+			player.PendingWeapon = next;
+		else next = null;
+		
+		return next;
+	}
+}
+
+//==============================================================================
+//==============================================================================
+// MCWeaponList
+//
+// This is the primary container for finding all weapons. This is initialized
+// upon each map start-up so changing maps allows for the list to refresh.
+//
+// Gathers all weapons and sorts them according to SlotNumber and SlotPriority.
+//==============================================================================
+//==============================================================================
+
 Class MCWeaponList play
 {
 	Array<Class<Weapon> > Weapons;
@@ -32,17 +226,13 @@ Class MCWeaponList play
 			// and range [0.0, 1.0].
 			let def = GetDefaultByType(wep);
 			if (def.SlotNumber < 0 || def.SlotNumber > 9 || 
-				def.SlotPriority > 1.0 || def.SlotPriority < 0.0)
+				def.SlotPriority < 0.0 || def.SlotPriority > 1.0)
 				continue;
 				
 			Weapons.Push(wep);
 		}
 		
 		// Now we have all the weapons, sort through all of them.
-		// For future reference, the prefix legend is as follows:
-		// Un = Unsorted
-		// We = Sorted Weapon
-		
 		// This array is iterated through like this:
 		// | = Sub-iterated through
 		// - = Not iterated through
@@ -57,6 +247,10 @@ Class MCWeaponList play
 		// --------||
 		// Where each time, the iteration is started one step closer to the end
 		// of the array.
+		
+		// For future reference, the prefix legend is as follows:
+		// Un = Unsorted Weapon
+		// We = Sorted Weapon
 		
 		int size = Weapons.Size();
 		for (int i = 0; i < size - 1; i++)
@@ -160,7 +354,10 @@ Class MCWeaponList play
 		Weapon next = null;
 		size = SlotWeaps.Size();
 		int index = size;
-		if (wep)	index = SlotWeaps.Find(wep.GetClass());
+		/*
+		if (pend && pend != wep)		index = SlotWeaps.Find(pend.GetClass());
+		else */ 
+			if (wep)	index = SlotWeaps.Find(wep.GetClass());
 		
 		if (index >= size)
 		{
@@ -222,6 +419,15 @@ Class MCWeaponList play
 		// The array is already sorted upon map load, so all we need to do is
 		// cycle through to the next array position and check if the weapon
 		// is valid for switching.
+		/*
+		int index = -1;
+		
+		if (pend && wep != pend)
+		{
+			index = Weapons.Find(pend.GetClass());
+		}
+		*/
+		//else 
 		int index = Weapons.Find(wep.GetClass());
 		int i = index;
 		int pi = i;
@@ -290,155 +496,5 @@ Class QueuedWeapon
 	{
 		if (weap != null)
 			weap.DisplayNameTag();
-	}
-}
-
-//------------------------------------------------------------------------------
-// Handler extensions. Deals with tags and weapon switching in one.
-//------------------------------------------------------------------------------
-extend class MCHandler
-{
-	// PostUITick
-	private ui void PrintWeaponTags()
-	{
-		// load 'em up
-		for ( int i=0; i < queue.size(); i++ )
-			if (queue[i].timestamp >= gametic)
-				queue[i].PrintTag();
-	}
-	
-	// WorldTick
-	private play void TickWeaponTags()
-	{
-		for (int i = 0; i < Queue.size(); i++)
-		{
-			if (Queue[i].timestamp >= gametic) continue;
-			Queue.Delete(i);
-			i--;
-		}
-	}
-
-	// InputProcess
-	// This overrides the 'slot <X>/weapnext/weapprev' commands and comes first.
-	// This is where it all begins.
-	private ui bool CheckInputWeaponChange(InputEvent ev)
-	{
-		if (ev.Type == InputEvent.Type_KeyDown)
-		{
-			int index = consoleplayer;
-			PlayerInfo player = players[index];
-			
-			// Make sure they exist, and they desire this.
-			if (player)
-			{
-				let cv = CVar.GetCVar('MC_KeyconfWeaponBuster', player);
-				if (!cv || !cv.GetInt())
-					return false;
-			}
-			else return false;
-			
-			// They exist, but don't operate on dead/morphed players.
-			let plr = player.mo;
-			if (!plr || plr.health < 1 || plr.FindInventory("PowerMorph",true))
-				return false;
-			
-			static const String KeyBindsCCMDs [] = {
-				"slot 1", "slot 2", "slot 3", "slot 4", "slot 5",
-				"slot 6", "slot 7", "slot 8", "slot 9", "slot 0",
-				"weapnext", "weapprev"	};
-			static const String KeyBindsNetEvents [] = {
-				"slot:1", "slot:2", "slot:3", "slot:4", "slot:5",
-				"slot:6", "slot:7", "slot:8", "slot:9", "slot:0",
-				"next", "prev"	};
-			
-			// Find the key and translate it from the raw command to an 
-			// event-friendly string. Makes splitting it easier.
-			int bind1, bind2;
-			for (int i = 0; i < KeyBindsCCMDs.Size(); i++) 
-			{
-				// Bindings is a global struct. Definition in menu.txt inside GZDoom.pk3.
-				// Get the keys that are bound to this action.
-				[bind1, bind2] = Bindings.GetKeysForCommand (KeyBindsCCMDs [i]);
-				
-				if (ev.KeyScan == bind1 || ev.KeyScan == bind2) 
-				{
-					//Console.Printf("%s", KeyBindsNetEvents[i]);
-					// Calls NetworkEvent in Base.txt and assembles the command
-					// to call ChangeWeapons function below, and aborts the 
-					// rest of the input.
-					
-					EventHandler.SendNetworkEvent(String.Format("MC_SelectWeapon:%s", KeyBindsNetEvents[i]));
-					return true;
-				}
-			}
-		}
-		return false;
-	}
-
-	//==========================================================================
-	// ChangeWeapons
-	//
-	// Sets the forthcoming weapon based on the command sent to it. Applicable
-	// commands are:
-	// 
-	// slot # (0-9)
-	// weapnext
-	// weapprev
-	//==========================================================================
-	private Weapon ChangeWeapons(ConsoleEvent e)
-	{
-		int pnum = e.Player;
-		if (!playeringame[pnum])
-			return null;
-			
-		PlayerInfo player = players[pnum];
-
-		if (!player) // No player.
-			return null;
-
-		Array<String> commandStrings;
-		e.Name.Split (commandStrings, ":");
-		if (commandStrings.Size() < 2) // Return if the array contains less than two strings
-			return null;
-			
-		// At this point, we should have at minimum two strings in this form:
-		// [0] = MC_SelectWeapon
-		// [1] = <command>
-		// See InputProcess for the translations (from first to second array)
-		
-		let ready = player.ReadyWeapon;
-		let pending = player.PendingWeapon;
-		
-		UpdateWeaponList();
-		
-		Weapon next = null;
-		if (commandStrings[1] == 'next')
-		{
-			next = WeaponList.SetNextWeapon(player);
-		}
-		else if (commandStrings[1] == 'prev')
-		{
-			next = WeaponList.SetNextWeapon(player, true);
-		}
-		else if (commandStrings[1] == 'slot')
-		{
-			// Switching to a weapon in slot.
-			// MC_SelectWeapon:slot:#
-			int len = (commandStrings.Size() > 2) ? commandStrings[2].Length() : 0;
-			if (len < 1)	return null;
-			
-			String s = commandStrings[2];
-			if (len > 1)	s = s.CharAt(len - 1);
-			int num = s.ToInt();
-			
-			//Have a number.
-			next = WeaponList.SetSlotWeapon(player, num);
-		}
-		if (!next)	next = ready;
-		if (next && next != ready)	
-			player.PendingWeapon = next;
-		else next = null;
-		
-		return next;
 	}
 }

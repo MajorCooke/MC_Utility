@@ -1,0 +1,39 @@
+/*
+ *  Se7evidas - A GZDoom mod
+ *  Copyright (C) 2018-2019 Chronos "phantombeta" Ouroboros
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+// Delayed spawns
+enum S7_DelayedSpawns {
+    S7_DelaySpawns_Off = 0,
+    S7_DelaySpawns_MapStart = 1,
+    S7_DelaySpawns_All = 2,
+}
+
+// Key renames
+enum S7_GZDoomButtons {
+    S7_BT_ChangeFireMode = BT_User3,
+}
+
+// Debugging constants
+enum S7_DebuggingConstants {
+    // Monster AI bitfield
+    S7_Dbg_MAI_Searching = 1 << 0,
+};
+
+// Misc
+const S7C_MapUnitsPerMeter = 32;
+const S7C_EqualEpsilon = (1 / 65536.);

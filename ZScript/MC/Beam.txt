@@ -1,0 +1,576 @@
+//==============================================================================
+// Beams
+//
+// Developed by Major Cooke
+// Derived from Marisa Kirisami's Unreal beams
+
+// These beams are far superior to the ones I originally developed. Instead of
+// constantly spawning effects and letting them destroy themselves, this
+// simply only spawns them when necessary and otherwise moves them around, only
+// destroying them when necessary.
+//==============================================================================
+
+Class MCBeam : Actor
+{
+	// Closed properties
+	protected int WaitTics;
+	protected int Timer;
+	protected int BeamCount;
+	protected bool KeepKid;
+	protected double Dist, ConeAngle, ConeSpread;
+	protected Vector2 AimOffsets;
+	protected MCBeam Parent, Child;
+	private Vector3 dir, origin, ox, oy, oz, angs;
+	
+	transient MCBeamTracer BeamTrace;
+	
+	// Open properties
+	Name 	SpriteName;
+	int		FrameMin, FrameMax,
+			TimeLimitMin, TimeLimitMax,
+			MaxBeams, MaxPierce,
+			TicsMin, TicsMax,
+			Dmg;
+	
+	double 	LengthMin, LengthMax,
+			WidthMin, WidthMax,
+			AngleMin, AngleMax,
+			PitchMin, PitchMax,
+			TurnMin, TurnMax,
+			OffX, OffY, OffZ,
+			AimOffset,
+			CSMin, CSMax;
+			
+	bool	UseDeathState, 
+			UseSpawnPoint,
+			Precise,
+			AbsoluteOffsets,
+			DoDamage;
+			
+	Class<Actor> Puff;
+	
+	// If true, starting beam will be anchored to its spawning coordinates.
+	// Follows the target around otherwise.
+	Property UseSpawnPoint:		UseSpawnPoint;
+	
+	// Jump to death state instead of disappearing once finished.
+	Property UseDeathState:		UseDeathState;
+	
+	// The sprite's four letters, i.e. ZOMB in 'ZOMB A 0'
+	Property SpriteName:		SpriteName;
+	
+	// The sprite's frame ranges, from Fr_A to Fr_Z. This propagates to the
+	// rest of the beams too.
+	// 
+	// I.e. 'MCBeam.Frames Fr_C, Fr_G;' is equivalent to the following DECORATE code:
+	//
+	//	Select:
+	//		TNT1 A 0 A_Jump(256,1,2,3,4,5)
+	//		ZOMB CDEFG 0 A_Jump(256,"Play")
+	//	Play:
+	//		"----" A 1 A_DoStuff
+	Property Frames:			FrameMin, FrameMax;
+	
+	// Randomized pitches/angles/lengths/widths of the beam.
+	Property Pitches:			PitchMin, PitchMax;
+	Property Angles:			AngleMin, AngleMax;
+	Property Lengths:			LengthMin, LengthMax;
+	Property Widths:			WidthMin, WidthMax;
+	
+	// Turn limits
+	Property Turn:				TurnMin, TurnMax;
+	
+	// Maximum number of beams to spawn. The greater the number, the longer the
+	// effect can reach.
+	Property MaxBeams:			MaxBeams;
+	
+	// Total lifetime this can last.
+	Property TimeLimit:			TimeLimitMin, TimeLimitMax;
+	
+	// How long to hold this offset from the parent.
+	Property Tics:				TicsMin, TicsMax;
+	
+	// Relative offsets from the target's position
+	Property Offsets:			OffX, OffY, Offz;
+	
+	// If true, offsets are absolute instead of relative.
+	Property AbsoluteOffsets:	AbsoluteOffsets;
+	
+	// Should the beam deal damage to foes that get in the way?
+	Property DoDamage:			DoDamage;
+	
+	// How many actors can the beam hit before it cannot go further?
+	Property MaxPierce:			MaxPierce;
+	
+	// If true, the beam will check for impacts with terrain/actors along beams.
+	Property Precise:			Precise;
+	
+	Property Puff:				Puff;
+	
+	// Height multiplier. 0 = tracer's base, 1 = top of tracer.
+	Property AimOffset:			AimOffset;
+	
+	// Cone spread. According to Marisa Kirisame, 1 = ~45 degrees.
+	Property ConeSpreadLimit:	CSMin, CSMax;
+	
+	Default
+	{
+		MCBeam.Puff "BulletPuff";
+		MCBeam.UseDeathState false;
+		MCBeam.UseSpawnPoint false;
+		MCBeam.Precise false;
+		MCBeam.MaxPierce 0;
+		MCBeam.MaxBeams 25;
+		//MCBeam.Offsets 10.0, 4.1, -2.7; // For weapons
+		MCBeam.AimOffset 0.0;
+		MCBeam.Offsets 0.0, 0.0, 0.0;
+		MCBeam.TimeLimit 0, 0;
+		MCBeam.Tics 2, 2;
+		MCBeam.Turn 30, 30;
+		MCBeam.ConeSpreadLimit 0.15, 0.30;
+		RenderStyle "Add";
+		Radius 1;
+		Height 1;
+		XScale 0.1;
+		YScale 1.0;
+		Projectile;
+		+BRIGHT
+		+NOINTERACTION
+	}
+	
+	// Propagates the chain of children, ensuring they all follow through.
+	void SetKeeping(bool keep)
+	{
+		KeepKid = keep;
+		if (Child)	Child.SetKeeping(keep);
+	}
+	
+	override void OnDestroy()
+	{
+		if (Child && !KeepKid)
+		{
+			Child.Destroy();
+		}
+		Super.OnDestroy();
+	}
+	
+	
+	
+	// For whatever fancy effects can happen, use the death state. Disables
+	// child chain destruction so they can disappear on their own whenever they want.
+	// Only applies if UseDeathState is true. Otherwise, destroy it.
+	override void Die(Actor source, Actor inflictor, int dmgflags, Name MeansOfDeath)
+	{
+		if (bKILLED)	return;
+		
+		bKILLED = true;
+		
+		// Only the parent should call this since this will propagate into
+		// children, and they'll call it needlessly over and over again.
+		if (!Parent)	
+			SetKeeping(UseDeathState);
+			
+		if (UseDeathState)
+		{
+			if (Child)		Child.Die(source, inflictor, dmgflags, MeansOfDeath);
+			SetState(ResolveState("Death"));
+		}
+		else	{ 	Destroy(); return;	}
+	}
+	
+	override void BeginPlay()
+	{
+		ChangeStatNum(Thinker.STAT_USER);
+		Super.BeginPlay();
+	}
+	
+	// Set up the scaling times, sprite/frames and validate them all.
+	override void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		
+		// If this is being spawned manually instead of by a spawner, set some
+		// things up. Otherwise, the parent beam will set everything up accordingly.
+		
+		if (!Parent)
+		{
+			int check = GetSpriteIndex(SpriteName);
+			if (check < 0)
+			{	ThrowAbortException("SpriteName is bad! Check to make sure it's defined!");	return;	}
+			Sprite = check;
+			
+			if (FrameMin < Fr_A || FrameMin > Fr_Z || FrameMax < Fr_A || FrameMax > Fr_Z)
+			{	ThrowAbortException("Frames parameters must be in range [Fr_A, Fr_Z]");	return;	}
+			
+			Frame = random(FrameMin, FrameMax);
+			AimOffsets = (FRandom(AngleMin, AngleMax), FRandom(PitchMin, PitchMax));
+			Scale.Y = frandom(LengthMin, LengthMax);
+			Scale.X = frandom(WidthMin, WidthMax);
+			Pitch += 90.0;
+			ClearInterpolation();
+			WaitTics = 0;
+			
+			Timer = 0;
+			if (Max(TimeLimitMin, TimeLimitMax) > 0)
+				Timer = Max(0,random(TimeLimitMin, TimeLimitMax));
+		}		
+	}
+	
+	//==========================================================================
+	// Custom Functions
+	//==========================================================================
+	
+	//--------------------------------------------------------------------------
+	// Updates the beam and moves it and child beams about.
+	
+	void NewUpdateBeam() // Still a WIP. Not yet working.
+	{
+		if (bKILLED)	return;
+		
+		// In order to allow for varied lengths, the beams are actually aiming
+		// straight upwards. None of the MODELDEF options helped unfortunately
+		// so the length of the beam is represented by Y scale.
+		// Temporarily alter the pitch to allow for proper calculation of 
+		// location and aiming direction.
+		Pitch -= 90.0;
+		
+		// Perform movement code here.
+		Scale.Y = frandom(LengthMin, LengthMax);
+		
+		// The true length of the beam is represented as Scale.Y * 100 to 
+		// accurately replicate GZDoom units. Here, it's squared for distance 
+		// functions.
+		double SY2 = (Scale.Y * 100.0) ** 2;
+		
+		// Never check for the position. That's extremely resource intensive.
+		int WarpFlags = WARPF_NOCHECKPOSITION;
+		if (!bDONTINTERPOLATE)	WarpFlags |= WARPF_INTERPOLATE;
+		
+		if (Parent)
+		{
+			// Copy the parent's width and properties.
+			Scale.X = Parent.Scale.X;
+			Frame = Parent.Frame;
+			Tracer = Parent.Tracer;
+			Translation = Parent.Translation;
+			WaitTics = Parent.WaitTics;
+			
+			// Move to the end of the parent's beam.
+			double PSY = Parent.Scale.Y * 100.0;
+			double pit = Parent.Pitch - 90;
+			Warp(Parent, cos(pit) * PSY, 0, -sin(pit) * PSY, 0, WarpFlags);
+			
+		}
+		else
+		{
+			if (WaitTics < 1)
+			{
+				Frame = random(FrameMin, FrameMax);
+				Scale.X = frandom(WidthMin, WidthMax);
+			}
+			if (Target)
+			{
+				Vector3 x, y, z;
+				[x, y, z] = MC_CoordUtil.GetAxes(target.pitch,target.angle,target.roll);
+				double zz = (Target.Player) ? Target.Player.Viewz : Target.MissileHeight;
+				origin = target.Vec2OffsetZ(0,0,zz) + OffX * x + OffY * y + OffZ * z;
+				Warp(Target, origin.x, origin.y, origin.z, 0, WarpFlags|WARPF_ABSOLUTEPOSITION);
+				
+				/*
+				dir = (x + y * cos(ConeAngle) * cos(ConeAngle) * ConeSpread + z * sin(ConeAngle) * ConeSpread).unit();
+				A_SetAngle(atan2(dir.y,dir.x));
+				A_SetPitch(asin(-dir.z) + 90.0);
+				*/
+			}
+			else {	Pitch += 90.0;	return;	}
+		}
+		
+		// Movement complete.
+		// Now do the turning.
+		if (WaitTics < 1)
+		{
+			ConeAngle = frandom[Beam](0.0, 360.0);
+			ConeSpread = frandom[Beam](CSMin, CSMax);
+			double NextTurn = frandom(TurnMin, TurnMax);
+			if (Tracer)
+			{
+				Dist = Distance3DSquared(Tracer);
+				MC_Functions.StaticTurnAng(self, Tracer, NextTurn, AimOffset);
+			}
+			
+			[ox, oy, oz] = MC_CoordUtil.GetAxes(pitch,angle,roll);
+		}
+		dir = (ox + oy * cos(ConeAngle) * cos(ConeAngle) * ConeSpread + oz * sin(ConeAngle) * ConeSpread).unit();
+		A_SetAngle(atan2(dir.y,dir.x));
+		A_SetPitch(asin(-dir.z) + 90.0);
+		
+		
+		// Turning complete. 
+		// Update the children.
+		if (Dist > SY2)
+		{
+			if (Child)
+			{
+				Child.NewUpdateBeam();
+			}
+			else if (BeamCount < MaxBeams)
+			{
+				Child = MCBeam(Spawn(GetClass(), pos));
+				Child.Sprite = Sprite;
+				Child.Frame = Frame;
+				Child.Tracer = Tracer;
+				Child.Target = Target;
+				Child.Master = Master;
+				Child.Parent = self;
+				Child.Angle = Angle;
+				Child.Pitch = Pitch;
+				Child.Translation = Translation;
+				Child.BeamCount = BeamCount + 1;
+				Child.Prev = Prev;
+				Child.NewUpdateBeam();
+			}
+		}
+		else 
+		{
+			if (Child)	
+			{
+				SetKeeping(false);
+				Child.Destroy();
+			}
+			
+			if (Tracer)
+				Scale.Y = sqrt(Dist) * 0.01;
+		}
+	}
+	
+	//--------------------------------------------------------------------------
+	// Current edition. Stable.
+	void UpdateBeam()
+	{
+		if (bKILLED)	return;
+		
+		// Perform movement code here.
+		Scale.Y = frandom(LengthMin, LengthMax);
+		double SY = Scale.Y * 100.0;
+		double SY2 = SY ** 2;
+		Dist = 0;
+		
+		// Never check for the position. That's extremely resource intensive.
+		int WarpFlags = WARPF_NOCHECKPOSITION;
+		int InterpFlags = 0;
+		
+		if (!bDONTINTERPOLATE)	
+		{
+			WarpFlags |= WARPF_INTERPOLATE;
+			InterpFlags = SPF_INTERPOLATE;
+		}
+		
+		// Move to the parent's end point based on the scale.
+		if (Parent)
+		{
+			Scale.X = Parent.Scale.X;
+			Frame = Parent.Frame;
+			Tracer = Parent.Tracer;
+			Translation = Parent.Translation;
+			
+			double PSY = Parent.Scale.Y * 100.0;
+			double pit = Parent.Pitch - 90;
+			
+			Warp(Parent, cos(pit) * PSY, 0, -sin(pit) * PSY, 0, WarpFlags);
+		}
+		else
+		{
+			
+			Frame = random(FrameMin, FrameMax);
+			Scale.X = frandom(WidthMin, WidthMax);
+			if (Target.Player)
+			{
+				Vector3 x, y, z, origin;
+				[x, y, z] = MC_CoordUtil.GetAxes(target.pitch,target.angle,target.roll);
+				origin = target.Vec2OffsetZ(0,0,target.player.viewz) + OffX * x + OffY * y + OffZ * z;
+				Warp(Target, origin.x, origin.y, origin.z, 0, WarpFlags|WARPF_ABSOLUTEPOSITION);
+			}
+			else if (Target)
+			{
+				Warp(Target, OffX, OffY, OffZ, 0, WarpFlags);
+			}
+		}
+		
+		// Movement complete.
+		// Now do the turning.
+		double NextPitchAdd = FRandom(PitchMin, PitchMax);
+		double NextAngleAdd = FRandom(AngleMin, AngleMax);
+		
+		if (!Parent && Target)
+			Pitch = Target.Pitch + 90.0;
+		Pitch -= 90.0;
+		if (Tracer)
+		{
+			Dist = Distance3DSquared(tracer);
+			double NextTurn = frandom(TurnMin, TurnMax);
+			
+			if (NextTurn >= 0.0)
+				MC_Functions.StaticTurnAng(self, Tracer, NextTurn, AimOffset);
+			
+			if (Dist > SY2)
+			{
+				Pitch += NextPitchAdd;
+				Angle += NextAngleAdd;
+			}
+			else if (NextTurn > 0.0)
+				A_FaceTracer(0,0,0,0, FAF_BOTTOM, AimOffset);
+		}
+		else
+		{
+			Pitch += NextPitchAdd;
+			Angle += NextAngleAdd;
+		}
+		Pitch += 90.0;
+		
+		// Turning complete. Now handle the children.
+		if (Dist > SY2)
+		{
+			if (Child)
+			{
+				Child.UpdateBeam();
+			}
+			else if ((BeamCount < MaxBeams))
+			{
+				Child = MCBeam(Spawn(GetClass(), pos));
+				Child.Sprite = Sprite;
+				Child.Frame = Frame;
+				Child.Tracer = Tracer;
+				Child.Target = Target;
+				Child.Master = Master;
+				Child.Parent = self;
+				Child.Angle = Angle;
+				Child.Pitch = Pitch;
+				Child.Translation = Translation;
+				Child.BeamCount = BeamCount + 1;
+				Child.Prev = Prev; //Vec3Angle(Scale.Y, angle, -sin(pitch));
+				Child.UpdateBeam();
+			}
+		}
+		else 
+		{
+			if (Child)	
+			{
+				SetKeeping(false);
+				Child.Destroy();
+				Child = null;
+			}
+			
+			if (Tracer)
+				Scale.Y = sqrt(Dist) * 0.01;
+		}
+	}
+	
+	protected void DoBeam()
+	{
+		if (!Target)	
+		{
+			SetKeeping(false);
+			Destroy();
+			return;
+		}
+		if (!Parent)	
+		{
+			UpdateBeam();
+			if (WaitTics > 0)	WaitTics--;
+			else WaitTics = random[Beam](TicsMin, TicsMax);
+		}
+		else A_SetTics(-1);
+	}
+	
+	States
+	{
+	// Without someone using these, modeldefs will throw a fit and refuse to start.
+	Precache:
+		LTBM A 0;
+		X202 BYZ 0;
+		X206 FGHIJKLM 0;
+	Spawn:
+		---- A 0;
+		---- A 1 DoBeam();
+		Wait;
+	Death:
+		---- A 1;
+		Stop;
+	}
+}
+
+//------------------------------------------------------------------------------
+// Beam Tracer
+// 
+// Used to trace along each beam.
+//------------------------------------------------------------------------------
+
+Class MCBeamTracer : LineTracer
+{
+	Actor src;
+	bool ThruSpecies, ThruGhost, ThruActors;
+	Name Species;
+	
+	
+	Array<Actor> actorsToIgnore;
+	Array<Class<Actor> > classesToIgnore;
+	
+	override ETraceStatus TraceCallback() 
+	{
+		switch (Results.HitType) 
+		{
+			case TRACE_HitActor:
+			{
+				if (ThruActors)
+					return TRACE_Skip;
+			
+				let mo = Results.HitActor;
+				
+				if (!mo || mo == src)
+					return TRACE_Skip;
+				
+				int size = ActorsToIgnore.Size();
+				if (size > 0 && actorsToIgnore.Find(mo) < size)
+					return TRACE_Skip;
+					
+			//	if (size > 0)
+			//		for (int i = 0; i < size; i++) 
+			//			if (mo == actorsToIgnore[i])
+			//				return TRACE_Skip;
+					
+				size = classesToIgnore.Size();
+				if (size > 0 && classesToIgnore.Find(mo.GetClass()) < size)
+					return TRACE_Skip;
+				
+				if (!mo.bSHOOTABLE || 
+					ThruSpecies && Species == mo.Species ||
+					ThruGhost && mo.bGHOST)
+					return TRACE_Skip;
+				
+				return TRACE_Stop;
+			}
+
+			case TRACE_HitFloor:
+			case TRACE_HitCeiling:
+				return TRACE_Stop;
+			
+
+			case TRACE_HitWall:
+			{
+				if (Results.Tier == TIER_Upper || Results.Tier == TIER_Lower) 
+					return TRACE_Stop;
+
+				let hl = Results.HitLine;
+				int hf = hl.flags;
+				
+				if (hf & (Line.ML_BLOCKING | Line.ML_BLOCKEVERYTHING | Line.ML_BLOCKHITSCAN))
+					return TRACE_Stop;
+				
+				if (Results.Tier == TIER_Middle && (hf & Line.ML_BLOCKING) && (hf & Line.ML_TWOSIDED))
+					return TRACE_Skip;
+				
+			}
+		}
+		return TRACE_Skip;
+	}
+}

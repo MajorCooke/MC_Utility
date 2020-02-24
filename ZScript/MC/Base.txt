@@ -3,6 +3,8 @@
 #include "ZScript/MC/ActorDisplay.txt"
 #include "ZScript/MC/Relations.txt"
 #include "ZScript/MC/Morph.txt"
+#include "ZScript/MC/Beam.txt"
+#include "ZScript/MC/Actor.txt"
 
 // A simple set or wrappers for making ACS-style HUD messages.
 // Calling these is as simple as:

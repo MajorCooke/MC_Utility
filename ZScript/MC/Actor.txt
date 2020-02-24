@@ -1,0 +1,92 @@
+Class MC_Functions play
+{
+	static void StaticSeekAng(Actor caller, double angl = 5, double heightoffset = 0.5, int flags = 0)
+	{
+		if (!caller || !caller.bSEEKERMISSILE ||
+			(caller.vel ~== (0,0,0) && ((flags & SMF_CURSPEED) || caller.speed ~== 0)))
+			return;
+			
+		if (!caller.Tracer || caller.Tracer.Health < 1 || caller.Tracer.bCANTSEEK)
+		{
+			caller.Tracer = null;
+			if (flags & SMF_LOOK)	
+			{
+				Vector3 oldvel = caller.vel,
+						oldpos = caller.pos,
+						oldpre = caller.prev,
+						dir = (caller.angle, caller.pitch, caller.roll);
+						
+				
+				caller.A_SeekerMissile(1, 1, flags);
+				
+				if (caller.Tracer)
+				{
+					caller.vel = oldvel;
+					caller.SetOrigin(oldpos, false);
+					caller.prev = oldpre;
+					caller.angle = dir.x;
+					caller.pitch = dir.y;
+					caller.roll = dir.z;
+				}
+				else return;
+			}
+			else return;
+		}
+		MC_Functions.StaticTurnAng(caller, caller.tracer, angl, heightoffset, true, flags);
+	}
+
+	static void StaticTurnAng(Actor caller, Actor mo, double angl = 5, double heightoffset = 0.5, 
+		bool seeker = false, int flags = 0)
+	{
+		if (!caller || !mo || angl <= 0.0)	return;
+		
+		heightoffset = Clamp(heightoffset, 0.0, 1.0);
+		
+		// Magnificent code by KeksDose.
+		
+		double angle = caller.angle;
+		double pitch = caller.pitch;
+		Vector3 pos = caller.pos;
+		
+		Vector3 dir = levellocals.vec3diff(pos, mo.Vec3Offset(0, 0, mo.height * heightoffset));
+		
+		Vector3 view = (cos(angle)*cos(pitch),sin(angle)*cos(pitch),-sin(pitch));
+		dir				= dir.unit();
+		let view_unit	= view.unit();
+		let cosang		= view_unit dot dir;
+		
+		// Facing opposite, so you can do whatever you like here!
+		if (cosang < -0.999) 
+		{
+			caller.angle += angl;
+		}
+		
+		// Not yet locked on
+		else if (cosang < 0.999) 
+		{
+			let ver_axis	= (view_unit - cosang * dir).unit();
+			let ang			= acos(cosang);
+		   
+			// Turn. This is all local polar coordinates.
+			ang = max(0, ang - angl);
+			
+			view = (cos(ang) * dir + sin(ang) * ver_axis);			
+		}
+		
+		if (seeker)
+		{
+			if (flags & SMF_CURSPEED)
+				caller.vel = caller.vel.Length() * view;
+			else
+				caller.vel = caller.speed * view;
+			caller.A_FaceMovementDirection();
+		}
+		else
+		{
+			int flag = (caller.bINTERPOLATEANGLES) ? SPF_INTERPOLATE : 0;
+			caller.A_SetAngle(VectorAngle(view.x, view.y), flag);
+			caller.A_SetPitch(asin(-view.z), flag);
+		}
+		
+	}
+}

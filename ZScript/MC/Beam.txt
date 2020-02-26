@@ -20,7 +20,7 @@ Class MCBeam : Actor
 	protected double Dist, ConeAngle, ConeSpread;
 	protected Vector2 AimOffsets;
 	protected MCBeam Parent, Child;
-	private Vector3 dir, origin, ox, oy, oz, angs;
+	private Vector3 odir;
 	
 	transient MCBeamTracer BeamTrace;
 	
@@ -127,7 +127,7 @@ Class MCBeam : Actor
 		MCBeam.TimeLimit 0, 0;
 		MCBeam.Tics 2, 2;
 		MCBeam.Turn 30, 30;
-		MCBeam.ConeSpreadLimit 0.15, 0.30;
+		MCBeam.ConeSpreadLimit 0.1, 0.3;
 		RenderStyle "Add";
 		Radius 1;
 		Height 1;
@@ -153,8 +153,6 @@ Class MCBeam : Actor
 		}
 		Super.OnDestroy();
 	}
-	
-	
 	
 	// For whatever fancy effects can happen, use the death state. Disables
 	// child chain destruction so they can disappear on their own whenever they want.
@@ -220,9 +218,15 @@ Class MCBeam : Actor
 	// Custom Functions
 	//==========================================================================
 	
+	void RandomizeCone()
+	{
+		ConeAngle = frandom[Beam](0.0, 360.0);
+		ConeSpread = frandom[Beam](CSMin, CSMax);
+	}
+
 	//--------------------------------------------------------------------------
 	// Updates the beam and moves it and child beams about.
-	
+
 	void NewUpdateBeam() // Still a WIP. Not yet working.
 	{
 		if (bKILLED)	return;
@@ -242,12 +246,17 @@ Class MCBeam : Actor
 		// functions.
 		double SY2 = (Scale.Y * 100.0) ** 2;
 		
-		// Never check for the position. That's extremely resource intensive.
+		// Randomize the cone angle and spread if it's time to alter the beam.
+		if (WaitTics < 1) RandomizeCone();
+		
 		int WarpFlags = WARPF_NOCHECKPOSITION;
 		if (!bDONTINTERPOLATE)	WarpFlags |= WARPF_INTERPOLATE;
 		
+		Vector3 x, y, z, origin, dir;
+		Actor who = null;
 		if (Parent)
 		{
+			who = Parent;
 			// Copy the parent's width and properties.
 			Scale.X = Parent.Scale.X;
 			Frame = Parent.Frame;
@@ -255,55 +264,64 @@ Class MCBeam : Actor
 			Translation = Parent.Translation;
 			WaitTics = Parent.WaitTics;
 			
-			// Move to the end of the parent's beam.
-			double PSY = Parent.Scale.Y * 100.0;
-			double pit = Parent.Pitch - 90;
+			// Move to the end of the parent's beam. Remember, the parent has
+			// already re-aligned the pitch.
+			double pit = Parent.Pitch - 90.0;
+			double PSY = Parent.Scale.Y * 100;
 			Warp(Parent, cos(pit) * PSY, 0, -sin(pit) * PSY, 0, WarpFlags);
+			Pitch = Parent.Pitch;
+			Angle = Parent.Angle;
+			/*
+			[x, y, z] = MC_CoordUtil.GetAxes(pit, Parent.Angle, Parent.Roll);
+			
+			origin = Parent.Pos
+					+ x * (Parent.Scale.Y * 100.0)	// forward offset
+					+ y			// side offset
+					+ z;		// height offset
+			*/
+		
 			
 		}
-		else
+		else if (Target)
 		{
+			who = Target;
 			if (WaitTics < 1)
 			{
 				Frame = random(FrameMin, FrameMax);
 				Scale.X = frandom(WidthMin, WidthMax);
 			}
-			if (Target)
-			{
-				Vector3 x, y, z;
-				[x, y, z] = MC_CoordUtil.GetAxes(target.pitch,target.angle,target.roll);
-				double zz = (Target.Player) ? Target.Player.Viewz : Target.MissileHeight;
-				origin = target.Vec2OffsetZ(0,0,zz) + OffX * x + OffY * y + OffZ * z;
-				Warp(Target, origin.x, origin.y, origin.z, 0, WarpFlags|WARPF_ABSOLUTEPOSITION);
-				
-				/*
-				dir = (x + y * cos(ConeAngle) * cos(ConeAngle) * ConeSpread + z * sin(ConeAngle) * ConeSpread).unit();
-				A_SetAngle(atan2(dir.y,dir.x));
-				A_SetPitch(asin(-dir.z) + 90.0);
-				*/
-			}
-			else {	Pitch += 90.0;	return;	}
-		}
+			
+			[x, y, z] = MC_CoordUtil.GetAxes(target.pitch, target.angle, target.roll);
+			double zz = (Target.Player) ? Target.Player.Viewz : Target.MissileHeight;
+			origin = target.Vec2OffsetZ(0,0,zz) + OffX * x + OffY * y + OffZ * z;
+			Warp(Target, origin.x, origin.y, origin.z, 0, WarpFlags|WARPF_ABSOLUTEPOSITION);
+		
+		} else {	Pitch += 90.0;	return;	}
+		
+		SetOrigin(origin, !bDONTINTERPOLATE);
+		
 		
 		// Movement complete.
 		// Now do the turning.
 		if (WaitTics < 1)
 		{
-			ConeAngle = frandom[Beam](0.0, 360.0);
-			ConeSpread = frandom[Beam](CSMin, CSMax);
-			double NextTurn = frandom(TurnMin, TurnMax);
 			if (Tracer)
 			{
+				double NextTurn = frandom(TurnMin, TurnMax);
 				Dist = Distance3DSquared(Tracer);
 				MC_Functions.StaticTurnAng(self, Tracer, NextTurn, AimOffset);
+				[x, y, z] = MC_CoordUtil.GetAxes(pitch,angle,roll);
 			}
-			
-			[ox, oy, oz] = MC_CoordUtil.GetAxes(pitch,angle,roll);
 		}
-		dir = (ox + oy * cos(ConeAngle) * cos(ConeAngle) * ConeSpread + oz * sin(ConeAngle) * ConeSpread).unit();
-		A_SetAngle(atan2(dir.y,dir.x));
-		A_SetPitch(asin(-dir.z) + 90.0);
+	//	[x, y, z] = MC_CoordUtil.GetAxes(pitch,angle,roll);
+		if (Dist > SY2)
+		{
+			dir = (x + y * cos(ConeAngle) * ConeSpread + z * sin(ConeAngle) * ConeSpread).unit();
+			A_SetAngle(atan2(dir.y,dir.x));
+			A_SetPitch(asin(-dir.z));
+		}
 		
+		Pitch += 90.0;
 		
 		// Turning complete. 
 		// Update the children.
@@ -378,23 +396,16 @@ Class MCBeam : Actor
 			
 			Warp(Parent, cos(pit) * PSY, 0, -sin(pit) * PSY, 0, WarpFlags);
 		}
-		else
+		else if (Target)
 		{
-			
 			Frame = random(FrameMin, FrameMax);
 			Scale.X = frandom(WidthMin, WidthMax);
-			if (Target.Player)
-			{
-				Vector3 x, y, z, origin;
-				[x, y, z] = MC_CoordUtil.GetAxes(target.pitch,target.angle,target.roll);
-				origin = target.Vec2OffsetZ(0,0,target.player.viewz) + OffX * x + OffY * y + OffZ * z;
-				Warp(Target, origin.x, origin.y, origin.z, 0, WarpFlags|WARPF_ABSOLUTEPOSITION);
-			}
-			else if (Target)
-			{
-				Warp(Target, OffX, OffY, OffZ, 0, WarpFlags);
-			}
-		}
+			Vector3 x, y, z;
+			[x, y, z] = MC_CoordUtil.GetAxes(target.pitch, target.angle, target.roll);
+			double zz = (Target.Player) ? Target.Player.Viewz : Target.MissileHeight;
+			Vector3 origin = target.Vec2OffsetZ(0,0,zz) + OffX * x + OffY * y + OffZ * z;
+			Warp(Target, origin.x, origin.y, origin.z, 0, WarpFlags|WARPF_ABSOLUTEPOSITION);
+		} else { Pitch += 90.0; return; }
 		
 		// Movement complete.
 		// Now do the turning.

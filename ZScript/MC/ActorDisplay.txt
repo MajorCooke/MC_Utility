@@ -125,7 +125,7 @@ extend class MCHandler
 	MCHudShape AddShape(Actor target, Actor caller, String texname, 
 	Vector2 pos = (0,0), double rot = 0.0, 
 	Vector2 scale = (1,1), double scalemin = 1.0, double scalemax = 1.0,
-	name cv = '', double distmin = 0.0, double distmax = 0.0)
+	name cv = '', double distmin = 0.0, double distmax = 0.0, name scalecvar = '')
 	{
 		TextureID tex = TexMan.CheckForTexture(texname,TexMan.Type_Any);
 		if (!target || !caller || !tex)
@@ -150,6 +150,7 @@ extend class MCHandler
 			if (cv != '')	hud.check = cv;
 			hud.distmin = abs(distmin);
 			hud.distmax = abs(distmax);
+			hud.ScaleCvar = scalecvar;
 			hud.Init();
 			
 			int size = Shapes.Size();
@@ -186,9 +187,12 @@ Class MCHudShape play
 	Actor caller;				// 
 	name check;
 	bool active;
+	name ScaleCvar;
+	transient Cvar _ScaleCvar;
 	
 	void Init()
 	{
+		
 		flat = new("Shape2D");
 		
 		// simple coords
@@ -231,7 +235,10 @@ Class MCHudShape play
 			else
 				ts *= Max(scalemin, distmax / distance);
 		}
-		
+		if (ScaleCvar != '' && _ScaleCvar)
+		{
+			if (_ScaleCvar)	ts *= _ScaleCvar.GetFloat();
+		}
 		trans.Scale(ts);
 		trans.Rotate(rot);
 		trans.Translate(drawpos);
@@ -244,8 +251,13 @@ Class MCHudShape play
 	
 	virtual void Tick() 
 	{
-		if (!bDESTROYED && (!target || !caller || !tex))
+		if (bDESTROYED)	return;
+		if (!target || !caller || !tex)
+		{
 			Destroy();
+			return;
+		}
+		if (!_ScaleCvar)	_ScaleCvar = Cvar.GetCvar(ScaleCvar, players[consoleplayer]);
 	}
 	
 	bool SetTexture(string texname, bool doinit = true)

@@ -1,4 +1,4 @@
-#include "ZScript/TZK/zk-core/zscript.zsc"
-//#include "ZScript/TZK/zk-steps/ZScript.zsc"
-//#include "ZScript/TZK/zk-steps-def/ZScript.zsc"
-//#include "ZScript/TZK/zk-synth/ZScript.zsc"
+#include "ZScript/TZK/zk-core/zscript.txt"
+//#include "ZScript/TZK/zk-steps/ZScript.txt"
+//#include "ZScript/TZK/zk-steps-def/ZScript.txt"
+//#include "ZScript/TZK/zk-synth/ZScript.txt"

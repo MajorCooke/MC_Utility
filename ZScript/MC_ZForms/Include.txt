@@ -1,0 +1,13 @@
+// ZForms
+// Developed by PhantomBeta
+
+#include "ZScript/MC_ZForms/BaseMenu.txt"
+#include "ZScript/MC_ZForms/Element.txt"
+#include "ZScript/MC_ZForms/Button.txt"
+#include "ZScript/MC_ZForms/BoxTextures.txt"
+#include "ZScript/MC_ZForms/BoundingBox.txt"
+#include "ZScript/MC_ZForms/Frame.txt"
+#include "ZScript/MC_ZForms/Label.txt"
+#include "ZScript/MC_ZForms/Handler.txt"
+#include "ZScript/MC_ZForms/Image.txt"
+#include "ZScript/MC_ZForms/UiEvent.txt"

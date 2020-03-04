@@ -64,7 +64,7 @@ class S7_Projectile : FastProjectile {
 
     int BlockingType;
     int BlockingLineTier;
-    F3DFloor BlockingFFloor;
+    S7_3DFloorPointer BlockingFFloor;
 
     private bool spawnedTrail;
     bool hitSky;
@@ -150,12 +150,12 @@ class S7_Projectile : FastProjectile {
 
             case S7_BLOCK_3DFloor_Floor:
                 if (BlockingFFloor)
-                    return -BlockingFFloor.top.normal; // 3D floor normals are inverted.
+                    return -BlockingFFloor.Get3DFloor ().top.normal; // 3D floor normals are inverted.
             break;
 
             case S7_BLOCK_3DFloor_Ceiling:
                 if (BlockingFFloor)
-                    return -BlockingFFloor.bottom.normal; // 3D floor normals are inverted.
+                    return -BlockingFFloor.Get3DFloor ().bottom.normal; // 3D floor normals are inverted.
             break;
         }
 
@@ -171,7 +171,6 @@ class S7_Projectile : FastProjectile {
     **  Called after movement is performed when the movement mode is set to "FastProjectile" or "InstantMove".
     */
     virtual void PostMovement () { }
-
 
     /* Summary:
     **  Called when the projectile hits something.
@@ -211,81 +210,80 @@ class S7_Projectile : FastProjectile {
     **  Called when the movement mode is set to "FastProjectile".
     */
     virtual void NewFastProjTick () {
-		if (!self || bDestroyed)
-			return;
+        if (!self || bDestroyed)
+            return;
 
-		ClearInterpolation ();
+        ClearInterpolation ();
 
-		if (!bNoTimeFreeze && isFrozen ())
-			return;
+        if (!bNoTimeFreeze && isFrozen ())
+            return;
 
-		HandleMovement ();
+        HandleMovement ();
 
-		PostMovement ();
+        PostMovement ();
 
-		// Return if the actor got removed
-		if (!self || bDestroyed)
-			return;
-		// Freed itself
-		if (!CheckNoDelay ())
-			return;
-		// Advance the state
-		if (tics != -1) {
-			if (tics > 0)
-				tics--;
+        // Return if the actor got removed
+        if (!self || bDestroyed)
+            return;
+        // Freed itself
+        if (!CheckNoDelay ())
+            return;
+        // Advance the state
+        if (tics != -1) {
+            if (tics > 0)
+                tics--;
 
-			while (!tics) {
-				if (!self || bDestroyed || !CurState || !SetState (CurState.NextState)) // Actor was removed
-					return;
-			}
-		}
-	}
+            while (!tics) {
+                if (!self || bDestroyed || !CurState || !SetState (CurState.NextState)) // Actor was removed
+                    return;
+            }
+        }
+    }
 
     const S7_InstantMovement_Limit = 2 ** 14;
     /* Summary:
     **  Called when the movement mode is set to "InstantMovement".
     */
-    virtual void InstantMovementTick () 
-	{
-		if (!self || bDestroyed)
-			return;
+    virtual void InstantMovementTick () {
+        if (!self || bDestroyed)
+            return;
 
-		ClearInterpolation ();
+        ClearInterpolation ();
 
-		if (!bNoTimeFreeze && isFrozen ())
-			return;
+        if (!bNoTimeFreeze && isFrozen ())
+            return;
 
-		int moveCount = 0;
-		while (!(vel ~== (0, 0, 0))) {
-			HandleMovement ();
+        int moveCount = 0;
+        while (!(vel ~== (0, 0, 0))) {
+            HandleMovement ();
 
-			if (!self || bDestroyed)
-				return;
+            if (!self || bDestroyed)
+                return;
 
-			PostMovement ();
+            PostMovement ();
 
-			if (moveCount++ >= S7_InstantMovement_Limit) {
-				//Console.PrintF ("\cgSe7evidas error: Stopped instant-movement projectile \"%s\" from looping infinitely.", GetClassName ());
-				Destroy ();
-				return;
-			}
-		}
+            if (moveCount++ >= S7_InstantMovement_Limit) {
+                Console.PrintF ("\cgError: Stopped instant-movement projectile \"%s\" from looping infinitely.", GetClassName ());
+                Destroy ();
+                return;
+            }
+        }
 
-		// Return if the actor got removed
-		if (!self || bDestroyed)
-			return;
-		// Freed itself
-		if (!CheckNoDelay ())
-			return;
-		// Advance the state
-		if (tics != -1) {
-			if (tics > 0)
-				tics--;
+        // Return if the actor got removed
+        if (!self || bDestroyed)
+            return;
+        // Freed itself
+        if (!CheckNoDelay ())
+            return;
+        // Advance the state
+        if (tics != -1) {
+            if (tics > 0)
+                tics--;
 
-			while (!tics) {
-				if (!self || bDestroyed || !CurState || !SetState (CurState.NextState)) // Actor was removed
-					return;
-			}
-		}
-	}
+            while (!tics) {
+                if (!self || bDestroyed || !CurState || !SetState (CurState.NextState)) // Actor was removed
+                    return;
+            }
+        }
+    }
 }

@@ -2,7 +2,5 @@
 // This work is licensed under the terms of the MIT license.  
 // To obtain a copy, visit <https://opensource.org/licenses/MIT>.
 
-version "3.4"
-
-#include "scripts/synthfire.zsc"
-#include "scripts/sample.zsc"
+#include "ZScript/TZK/zk-steps/scripts/static.txt"
+#include "ZScript/TZK/zk-steps/scripts/handler.txt"

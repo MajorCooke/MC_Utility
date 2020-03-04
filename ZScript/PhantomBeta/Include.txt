@@ -1,18 +1,30 @@
 
 // Code from PhantomBeta's Se7evidas mod
-#include "ZScript/PhantomBeta/Se7evidas/Constants.ZS"
-#include "ZScript/PhantomBeta/Se7evidas/Math.ZS"
-#include "ZScript/PhantomBeta/Se7evidas/Projectile.ZS"
-#include "ZScript/PhantomBeta/Se7evidas/CollisionHandling.ZS"
-#include "ZScript/PhantomBeta/Se7evidas/Linetracer.ZS"
-#include "ZScript/PhantomBeta/Se7evidas/Movement.ZS"
-#include "ZScript/PhantomBeta/Se7evidas/Trail.ZS"
-#include "ZScript/PhantomBeta/Se7evidas/FastRNG.ZS"
-#include "ZScript/PhantomBeta/Se7evidas/Ballistics.ZS"
-#include "ZScript/PhantomBeta/Se7evidas/ColDet.ZS"
-#include "ZScript/PhantomBeta/Se7evidas/GZDoomFuncs.ZS"
-#include "ZScript/PhantomBeta/Se7evidas/Physics.ZS"
-#include "ZScript/PhantomBeta/Se7evidas/Trigonometry.ZS"
+#include "ZScript/PhantomBeta/Se7evidas/Constants.txt"
+#include "ZScript/PhantomBeta/Se7evidas/3DFloorPointer.txt"
+#include "ZScript/PhantomBeta/Se7evidas/Math.txt"
+#include "ZScript/PhantomBeta/Se7evidas/Projectile.txt"
+#include "ZScript/PhantomBeta/Se7evidas/CollisionHandling.txt"
+#include "ZScript/PhantomBeta/Se7evidas/Linetracer.txt"
+#include "ZScript/PhantomBeta/Se7evidas/Movement.txt"
+#include "ZScript/PhantomBeta/Se7evidas/Trail.txt"
+#include "ZScript/PhantomBeta/Se7evidas/FastRNG.txt"
+#include "ZScript/PhantomBeta/Se7evidas/Ballistics.txt"
+#include "ZScript/PhantomBeta/Se7evidas/ColDet.txt"
+#include "ZScript/PhantomBeta/Se7evidas/GZDoomFuncs.txt"
+#include "ZScript/PhantomBeta/Se7evidas/Physics.txt"
+#include "ZScript/PhantomBeta/Se7evidas/Trigonometry.txt"
 
-// Code by TheZombieKiller and PhantomBeta
-#include "ZScript/PhantomBeta/TZK/TZK_Include.ZS"
+// Copyright (c) 2017 Benjamin Moir and Chronos Ouroboros. All rights reserved.
+// This work is licensed under the terms of the MIT license.
+// To obtain a copy, visit <https://opensource.org/licenses/MIT>.
+
+#include "ZScript/PhantomBeta/TZK/TZK_Array.txt"
+#include "ZScript/PhantomBeta/TZK/TZK_Character.txt"
+#include "ZScript/PhantomBeta/TZK/TZK_Stream.txt"
+#include "ZScript/PhantomBeta/TZK/TZK_ASCII.txt"
+#include "ZScript/PhantomBeta/TZK/TZK_StringStream.txt"
+#include "ZScript/PhantomBeta/TZK/TZK_BinaryReader.txt"
+#include "ZScript/PhantomBeta/TZK/TZK_LumpStream.txt"
+#include "ZScript/PhantomBeta/TZK/TZK_Tokenizer.txt"
+#include "ZScript/PhantomBeta/TZK/TZK_ByteStream.txt"

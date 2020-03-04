@@ -18,9 +18,8 @@ Class MCBeam : Actor
 	protected int BeamCount;
 	protected bool KeepKid;
 	protected double Dist, ConeAngle, ConeSpread;
-	protected Vector2 AimOffsets;
 	protected MCBeam Parent, Child;
-	private Vector3 odir;
+	private Vector2 HoldAP;
 	
 	transient MCBeamTracer BeamTrace;
 	
@@ -46,8 +45,13 @@ Class MCBeam : Actor
 			Precise,
 			AbsoluteOffsets,
 			DoDamage;
+	meta bool
+			NeedTarget;
 			
 	Class<Actor> Puff;
+	
+	// Require a target?
+	Property NeedTarget:		NeedTarget;
 	
 	// If true, starting beam will be anchored to its spawning coordinates.
 	// Follows the target around otherwise.
@@ -128,14 +132,15 @@ Class MCBeam : Actor
 		MCBeam.Tics 2, 2;
 		MCBeam.Turn 30, 30;
 		MCBeam.ConeSpreadLimit 0.1, 0.3;
+		MCBeam.NeedTarget true;
 		RenderStyle "Add";
 		Radius 1;
 		Height 1;
 		XScale 0.1;
 		YScale 1.0;
-		Projectile;
 		+BRIGHT
 		+NOINTERACTION
+		+NOBLOCKMAP
 	}
 	
 	// Propagates the chain of children, ensuring they all follow through.
@@ -201,13 +206,11 @@ Class MCBeam : Actor
 			{	ThrowAbortException("Frames parameters must be in range [Fr_A, Fr_Z]");	return;	}
 			
 			Frame = random(FrameMin, FrameMax);
-			AimOffsets = (FRandom(AngleMin, AngleMax), FRandom(PitchMin, PitchMax));
 			Scale.Y = frandom(LengthMin, LengthMax);
 			Scale.X = frandom(WidthMin, WidthMax);
 			Pitch += 90.0;
 			ClearInterpolation();
 			WaitTics = 0;
-			
 			Timer = 0;
 			if (Max(TimeLimitMin, TimeLimitMax) > 0)
 				Timer = Max(0,random(TimeLimitMin, TimeLimitMax));
@@ -226,7 +229,7 @@ Class MCBeam : Actor
 
 	//--------------------------------------------------------------------------
 	// Updates the beam and moves it and child beams about.
-
+	Vector3 x, y, z, origin, dir;
 	void NewUpdateBeam() // Still a WIP. Not yet working.
 	{
 		if (bKILLED)	return;
@@ -246,65 +249,55 @@ Class MCBeam : Actor
 		// functions.
 		double SY2 = (Scale.Y * 100.0) ** 2;
 		
-		// Randomize the cone angle and spread if it's time to alter the beam.
-		if (WaitTics < 1) RandomizeCone();
-		
 		int WarpFlags = WARPF_NOCHECKPOSITION;
 		if (!bDONTINTERPOLATE)	WarpFlags |= WARPF_INTERPOLATE;
 		
-		Vector3 x, y, z, origin, dir;
-		Actor who = null;
+		Vector3 ox, oy, oz;
 		if (Parent)
 		{
-			who = Parent;
 			// Copy the parent's width and properties.
-			Scale.X = Parent.Scale.X;
-			Frame = Parent.Frame;
+			if (WaitTics < 1)
+			{
+				Scale.X = Parent.Scale.X;
+				Frame = Parent.Frame;
+			}
 			Tracer = Parent.Tracer;
 			Translation = Parent.Translation;
 			WaitTics = Parent.WaitTics;
 			
 			// Move to the end of the parent's beam. Remember, the parent has
 			// already re-aligned the pitch.
-			double pit = Parent.Pitch - 90.0;
-			double PSY = Parent.Scale.Y * 100;
-			Warp(Parent, cos(pit) * PSY, 0, -sin(pit) * PSY, 0, WarpFlags);
-			Pitch = Parent.Pitch;
-			Angle = Parent.Angle;
-			/*
-			[x, y, z] = MC_CoordUtil.GetAxes(pit, Parent.Angle, Parent.Roll);
+			[ox, oy, oz] = MC_CoordUtil.GetAxes(Parent.Pitch - 90, Parent.Angle, Parent.Roll);
 			
-			origin = Parent.Pos
-					+ x * (Parent.Scale.Y * 100.0)	// forward offset
-					+ y			// side offset
-					+ z;		// height offset
-			*/
+			// This offsets a little too far forward unfortunately.
+			// Add forward, side and height offsets
+			origin = Parent.Pos 
+					+ ox * (Parent.Scale.Y * 100.0)	
+					+ oy							
+					+ oz;							
 		
-			
 		}
 		else if (Target)
 		{
-			who = Target;
 			if (WaitTics < 1)
 			{
 				Frame = random(FrameMin, FrameMax);
 				Scale.X = frandom(WidthMin, WidthMax);
 			}
-			
-			[x, y, z] = MC_CoordUtil.GetAxes(target.pitch, target.angle, target.roll);
-			double zz = (Target.Player) ? Target.Player.Viewz : Target.MissileHeight;
-			origin = target.Vec2OffsetZ(0,0,zz) + OffX * x + OffY * y + OffZ * z;
-			Warp(Target, origin.x, origin.y, origin.z, 0, WarpFlags|WARPF_ABSOLUTEPOSITION);
+			[ox, oy, oz] = MC_CoordUtil.GetAxes(target.pitch, target.angle, target.roll);
+			double zz = (Target.Player) ? (Target.Player.Viewz - Target.Pos.Z) : Target.MissileHeight;
+			origin = target.Vec3Offset(0,0,zz) + OffX * ox + OffY * oy + OffZ * oz;
 		
-		} else {	Pitch += 90.0;	return;	}
+		} else {    Pitch += 90.0;	return;	}
 		
 		SetOrigin(origin, !bDONTINTERPOLATE);
-		
 		
 		// Movement complete.
 		// Now do the turning.
 		if (WaitTics < 1)
 		{
+			// Randomize the cone angle and spread if it's time to alter the beam.
+			RandomizeCone();
 			if (Tracer)
 			{
 				double NextTurn = frandom(TurnMin, TurnMax);
@@ -314,6 +307,7 @@ Class MCBeam : Actor
 			}
 		}
 	//	[x, y, z] = MC_CoordUtil.GetAxes(pitch,angle,roll);
+		
 		if (Dist > SY2)
 		{
 			dir = (x + y * cos(ConeAngle) * ConeSpread + z * sin(ConeAngle) * ConeSpread).unit();
@@ -392,9 +386,11 @@ Class MCBeam : Actor
 			Translation = Parent.Translation;
 			
 			double PSY = Parent.Scale.Y * 100.0;
-			double pit = Parent.Pitch - 90;
+			double pit = Parent.Pitch - 90.0;
 			
 			Warp(Parent, cos(pit) * PSY, 0, -sin(pit) * PSY, 0, WarpFlags);
+			Angle = Parent.Angle;
+			Pitch = Parent.Pitch;
 		}
 		else if (Target)
 		{
@@ -402,19 +398,21 @@ Class MCBeam : Actor
 			Scale.X = frandom(WidthMin, WidthMax);
 			Vector3 x, y, z;
 			[x, y, z] = MC_CoordUtil.GetAxes(target.pitch, target.angle, target.roll);
-			double zz = (Target.Player) ? Target.Player.Viewz : Target.MissileHeight;
-			Vector3 origin = target.Vec2OffsetZ(0,0,zz) + OffX * x + OffY * y + OffZ * z;
+			double zz = (Target.Player) ? Target.Player.Viewz - Target.Pos.Z : 0;
+			Vector3 origin = target.Vec3Offset(0,0,zz) + OffX * x + OffY * y + OffZ * z;
 			Warp(Target, origin.x, origin.y, origin.z, 0, WarpFlags|WARPF_ABSOLUTEPOSITION);
-		} else { Pitch += 90.0; return; }
+		}
 		
+		
+		Pitch -= 90.0;
 		// Movement complete.
 		// Now do the turning.
 		double NextPitchAdd = FRandom(PitchMin, PitchMax);
 		double NextAngleAdd = FRandom(AngleMin, AngleMax);
 		
-		if (!Parent && Target)
-			Pitch = Target.Pitch + 90.0;
-		Pitch -= 90.0;
+	//	if (!Parent && Target)
+	//		Pitch = Target.Pitch + 90.0;
+		
 		if (Tracer)
 		{
 			Dist = Distance3DSquared(tracer);
@@ -478,17 +476,23 @@ Class MCBeam : Actor
 	
 	protected void DoBeam()
 	{
-		if (!Target)	
-		{
-			SetKeeping(false);
-			Destroy();
-			return;
-		}
+		// Only the starting beam is allowed to call the first UpdateBeam.
 		if (!Parent)	
 		{
+			if ((!Target && NeedTarget) || !Tracer)
+			{
+				SetKeeping(false);
+				Destroy();
+				return;
+			}
 			UpdateBeam();
-			if (WaitTics > 0)	WaitTics--;
-			else WaitTics = random[Beam](TicsMin, TicsMax);
+			if (WaitTics > 0)	
+				WaitTics--;
+			else 
+			{
+				RandomizeCone();
+				WaitTics = random[Beam](TicsMin, TicsMax);
+			}
 		}
 		else A_SetTics(-1);
 	}

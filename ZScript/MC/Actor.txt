@@ -1,5 +1,153 @@
 Class MC_Functions play
 {
+	//--------------------------------------------------------------------------
+	// Replicates DamageMobj without actually affecting anyone.
+	// * tar - Target. Receiver of damage.
+	// * inf - Inflictor. Usually a missile.
+	// * src - Source. The one to blame.
+	// * damage - The amount to deal.
+	// * mod - Damage type.
+	// * flags - There are many of these.
+	// 
+	// Returns how much damage would have been done to the actor.
+	//--------------------------------------------------------------------------
+	/*
+	static int CalculateDamage(Actor tar, Actor inf, Actor src, int damage, 
+								Name mod, int flags = 0)
+	{
+		// Make sure the target exists.
+		if (!tar || tar.health < 1 || (!tar.bSHOOTABLE && !tar.bVULNERABLE))
+			return -1;
+			
+		if (damage < 1)
+			return damage;
+		
+		PlayerInfo player = tar.player;
+		int rawdamage = damage;
+		bool telefragDamage = (!tar.bLAXTELEFRAGDMG && rawdamage >= TELEFRAG_DAMAGE);
+		bool forced = (flags & DMG_FORCED);
+		
+		// Is it spectral?
+		if (!forced && tar.bSPECTRAL && !telefragDamage)
+		{
+			// Attacker('s projectile) isn't.
+			if (!inf || !inf.bSPECTRAL)
+				return -1;
+		}
+		
+		// Armor piercing?
+		if (inf && inf.bPIERCEARMOR)
+			flags |= DMG_NO_ARMOR;
+			
+		if (!forced)
+		{
+			if (tar.bDORMANT)
+				return -1;
+				
+			if (tar.bNODAMAGE)
+				return 0;
+			
+			if (!telefragDamage)
+			{
+				if (tar.bINVULNERABLE && (!inf || (!inf.bFOILINVUL && !(flags & DMG_FOILINVUL))))
+					return 0;
+				
+				if (player)
+					damage = int(damage * G_SkillProperty(SKILLP_DamageFactor) * sv_damagefactorplayer);
+				else
+				{
+					if (!tar.bFRIENDLY)	damage *= sv_damagefactormobj;
+					else				damage *= sv_damagefactorfriendly;
+				}
+				
+				if (inf)
+				{
+					if (inf.bSPECTRAL)
+					{
+						if (player)
+							if (!deathmatch && inf.FriendPlayer > 0)
+								return -1;
+						else if (tar.bSPECTRAL)
+							if (inf.FriendPlayer == 0 && tar.IsHostile(inf))
+								return -1;
+					}
+					
+					// This can cause some undesirable effects, if GZDoom's
+					// many override of DSD doesn't speak for itself.
+				//	inf->DoSpecialDamage(tar, damage, mod);
+				}
+				if (damage < 0)
+					return -1;
+					
+				if (src)
+				{
+					damage = int(damage * source.DamageMultiply);
+					
+					// We want to avoid any custom behavior overrides since
+					// they may try to trigger DamageMobj. Like ClusterPlex's
+					// Rainbow Halo.
+					if (damage > 0 && !(flags & DMG_NO_ENHANCE))
+					{
+						Inventory probe = null;
+						for (probe = source.Inv; probe != null; probe = prove.Inv)
+						{	
+							let pwr = PowerDamage(probe);
+							if (!pwr)	continue;
+							
+							damage = pwr.ApplyDamageFactors(pwr.GetClass(), mod, damage, damage * 4);
+							
+							if (damage < 1)
+								return damage;
+						}
+					}
+					
+					// Now do a check for the power protection.
+					if (damage > 0 && !(flags & DMG_NO_PROTECT))
+					{
+						Inventory probe = null;
+						for (probe = tar.Inv; probe != null; probe = prove.Inv)
+						{	
+							let pwr = PowerProtection(probe);
+							if (!pwr)	continue;
+							
+							damage = pwr.ApplyDamageFactors(pwr.GetClass(), mod, damage, damage * 4);
+							
+							if (damage < 1)
+								return damage;
+						}
+					}
+					
+					// Now for the actual damagefactor on the main actor itself.
+					if (damage > 0 && !(flags & DMG_NO_FACTOR))
+						damage = tar.ApplyDamageFactor(mod, damage);
+					
+					// Teamplay damage reduction.
+					if (((player && player != source.player) || (!player && tar != source)) &&
+						tar.IsTeammate(src))
+					{
+						damage = int(damage * tar.level.teamdamage);
+						if (damage < 1)
+							return (damage < 0) ? -1 : 0;
+					}
+				}
+			}
+		}
+		
+		if (player)
+		{
+			if ((player.cheats & (CF_GODMODE2|CF_BUDDHA2)) || tar.bNODAMAGE)
+				flags &= ~DMG_FORCED;
+				
+			// For now, let's just ignore any armor present.
+			//if (!flags & DMG_NO_ARMOR)
+		}
+		
+		return damage;
+	}
+	*/
+	//--------------------------------------------------------------------------
+	//
+	//--------------------------------------------------------------------------
 	static void StaticSeekAng(Actor caller, double angl = 5, double heightoffset = 0.5, int flags = 0)
 	{
 		if (!caller || !caller.bSEEKERMISSILE ||

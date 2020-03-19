@@ -1,3 +1,9 @@
+enum EMCUtilNums
+{
+	Second = 35,
+	Minute = Second * 60
+};
+
 enum FrameInts
 {
 	Fr_A = 0,
@@ -26,4 +32,9 @@ enum FrameInts
 	Fr_X,
 	Fr_Y,
 	Fr_Z,
+};
+
+enum ECustomDmgFlags
+{
+	DMG_INFO = 1 << 30
 };

@@ -11,7 +11,7 @@ Class MC_Functions play
 	// 
 	// Returns how much damage would have been done to the actor.
 	//--------------------------------------------------------------------------
-	/*
+	
 	static int CalculateDamage(Actor tar, Actor inf, Actor src, int damage, 
 								Name mod, int flags = 0)
 	{
@@ -24,13 +24,13 @@ Class MC_Functions play
 		
 		PlayerInfo player = tar.player;
 		int rawdamage = damage;
-		bool telefragDamage = (!tar.bLAXTELEFRAGDMG && rawdamage >= TELEFRAG_DAMAGE);
+		bool telefragDamage = (!tar.bLAXTELEFRAGDMG && rawdamage >= Actor.TELEFRAG_DAMAGE);
 		bool forced = (flags & DMG_FORCED);
 		
 		// Is it spectral?
 		if (!forced && tar.bSPECTRAL && !telefragDamage)
 		{
-			// Attacker('s projectile) isn't.
+			// Attacker's projectile isn't.
 			if (!inf || !inf.bSPECTRAL)
 				return -1;
 		}
@@ -53,7 +53,7 @@ Class MC_Functions play
 					return 0;
 				
 				if (player)
-					damage = int(damage * G_SkillProperty(SKILLP_DamageFactor) * sv_damagefactorplayer);
+					damage = int(damage * G_SkillPropertyFloat(SKILLP_DamageFactor) * sv_damagefactorplayer);
 				else
 				{
 					if (!tar.bFRIENDLY)	damage *= sv_damagefactormobj;
@@ -81,15 +81,16 @@ Class MC_Functions play
 					
 				if (src)
 				{
-					damage = int(damage * source.DamageMultiply);
+					damage = int(damage * src.DamageMultiply);
 					
 					// We want to avoid any custom behavior overrides since
 					// they may try to trigger DamageMobj. Like ClusterPlex's
 					// Rainbow Halo.
+					// Probe the source's inventory for PowerDamage.
 					if (damage > 0 && !(flags & DMG_NO_ENHANCE))
 					{
 						Inventory probe = null;
-						for (probe = source.Inv; probe != null; probe = prove.Inv)
+						for (probe = src.Inv; probe != null; probe = probe.Inv)
 						{	
 							let pwr = PowerDamage(probe);
 							if (!pwr)	continue;
@@ -101,16 +102,16 @@ Class MC_Functions play
 						}
 					}
 					
-					// Now do a check for the power protection.
+					// Now do a check for the power protection in target's inventory.
 					if (damage > 0 && !(flags & DMG_NO_PROTECT))
 					{
 						Inventory probe = null;
-						for (probe = tar.Inv; probe != null; probe = prove.Inv)
+						for (probe = tar.Inv; probe != null; probe = probe.Inv)
 						{	
 							let pwr = PowerProtection(probe);
 							if (!pwr)	continue;
 							
-							damage = pwr.ApplyDamageFactors(pwr.GetClass(), mod, damage, damage * 4);
+							damage = pwr.ApplyDamageFactors(pwr.GetClass(), mod, damage, damage / 4);
 							
 							if (damage < 1)
 								return damage;
@@ -122,7 +123,7 @@ Class MC_Functions play
 						damage = tar.ApplyDamageFactor(mod, damage);
 					
 					// Teamplay damage reduction.
-					if (((player && player != source.player) || (!player && tar != source)) &&
+					if (((player && player != src.player) || (!player && tar != src)) &&
 						tar.IsTeammate(src))
 					{
 						damage = int(damage * tar.level.teamdamage);
@@ -144,17 +145,85 @@ Class MC_Functions play
 		
 		return damage;
 	}
-	*/
+
 	//--------------------------------------------------------------------------
-	//
+	// StaticTurnAng
+	// 
+	// A much more realistic form of turning that isn't restricted via angle and
+	// pitch. Coded by KeksDose, modified by Major Cooke.
+	// 
+	// * Caller: The actor to do the turning.
+	// * Mo: The actor Caller turn towards.
+	// * Angl: The angle in degrees to turn. Default is 5.0
+	// * HeightOffset: Multiplier value of mo's height between [0.0,1.0]. 
+	// 		0.0 means aim at the bottom, 1.0 means aim at the top. 
+	//		Default is 0.5 (middle).
+	// * Seeker: If true, the velocity of the actor is set and then aimed.
+	//		Otherwise, simply turns the actor in the direction.
+	// 		In general, avoid using this. It's only here for SeekAng's purposes.
+	// * Flags: Same flags as A_SeekerMissile. Only used if it's a seeker.
 	//--------------------------------------------------------------------------
-	static void StaticSeekAng(Actor caller, double angl = 5, double heightoffset = 0.5, int flags = 0)
+	static void StaticTurnAng(Actor caller, Actor mo, double angl = 5, double heightoffset = 0.5, 
+		bool seeker = false, int seekflags = 0)
+	{
+		if (!caller || !mo || angl <= 0.0)	return;
+		
+		heightoffset = Clamp(heightoffset, 0.0, 1.0);
+		
+		double angle = caller.angle;
+		double pitch = caller.pitch;
+		Vector3 pos = caller.pos;
+		
+		Vector3 dir = levellocals.vec3diff(pos, mo.Vec3Offset(0, 0, mo.height * heightoffset));
+		
+		Vector3 view = (cos(angle)*cos(pitch),sin(angle)*cos(pitch),-sin(pitch));
+		dir				= dir.unit();
+		let view_unit	= view.unit();
+		let cosang		= view_unit dot dir;
+		
+		if (cosang < -0.999) // Facing opposite, so you can do whatever you like here!
+		{
+			caller.angle += angl;
+		}
+		else if (cosang < 0.999) // Not yet locked on
+		{
+			let ver_axis	= (view_unit - cosang * dir).unit();
+			let ang			= acos(cosang);
+		   
+			// Turn. This is all local polar coordinates.
+			ang = max(0, ang - angl);
+			view = (cos(ang) * dir + sin(ang) * ver_axis);			
+		}
+		
+		if (seeker)
+		{
+			if (seekflags & SMF_CURSPEED)
+				caller.vel = caller.vel.Length() * view;
+			else
+				caller.vel = caller.speed * view;
+			caller.A_FaceMovementDirection();
+		}
+		else
+		{
+			int flag = (caller.bINTERPOLATEANGLES) ? SPF_INTERPOLATE : 0;
+			caller.A_SetAngle(VectorAngle(view.x, view.y), flag);
+			caller.A_SetPitch(asin(-view.z), flag);
+		}
+	}
+	
+	//--------------------------------------------------------------------------
+	// A replacement for A_SeekerMissile. This performs StaticTurnAng above
+	// after doing a bit of prep work to make sure it still behaves like 
+	// a seeker missile does. Flags are the same as A_SeekerMissile's.
+	//--------------------------------------------------------------------------
+	static void StaticSeekAng(Actor caller, double angl = 5, double heightoffset = 0.5, 
+		int flags = 0, bool forceseek = false)
 	{
 		if (!caller || !caller.bSEEKERMISSILE ||
-			(caller.vel ~== (0,0,0) && ((flags & SMF_CURSPEED) || caller.speed ~== 0)))
+			(caller.vel ~== (0,0,0) && ((flags & SMF_CURSPEED) || caller.speed <= 0)))
 			return;
 			
-		if (!caller.Tracer || caller.Tracer.Health < 1 || caller.Tracer.bCANTSEEK)
+		if (!caller.Tracer || caller.Tracer.Health < 1 || (!forceseek && caller.Tracer.bCANTSEEK))
 		{
 			caller.Tracer = null;
 			if (flags & SMF_LOOK)	
@@ -163,7 +232,6 @@ Class MC_Functions play
 						oldpos = caller.pos,
 						oldpre = caller.prev,
 						dir = (caller.angle, caller.pitch, caller.roll);
-						
 				
 				caller.A_SeekerMissile(1, 1, flags);
 				
@@ -181,60 +249,5 @@ Class MC_Functions play
 			else return;
 		}
 		MC_Functions.StaticTurnAng(caller, caller.tracer, angl, heightoffset, true, flags);
-	}
-
-	static void StaticTurnAng(Actor caller, Actor mo, double angl = 5, double heightoffset = 0.5, 
-		bool seeker = false, int flags = 0)
-	{
-		if (!caller || !mo || angl <= 0.0)	return;
-		
-		heightoffset = Clamp(heightoffset, 0.0, 1.0);
-		
-		// Magnificent code by KeksDose.
-		
-		double angle = caller.angle;
-		double pitch = caller.pitch;
-		Vector3 pos = caller.pos;
-		
-		Vector3 dir = levellocals.vec3diff(pos, mo.Vec3Offset(0, 0, mo.height * heightoffset));
-		
-		Vector3 view = (cos(angle)*cos(pitch),sin(angle)*cos(pitch),-sin(pitch));
-		dir				= dir.unit();
-		let view_unit	= view.unit();
-		let cosang		= view_unit dot dir;
-		
-		// Facing opposite, so you can do whatever you like here!
-		if (cosang < -0.999) 
-		{
-			caller.angle += angl;
-		}
-		
-		// Not yet locked on
-		else if (cosang < 0.999) 
-		{
-			let ver_axis	= (view_unit - cosang * dir).unit();
-			let ang			= acos(cosang);
-		   
-			// Turn. This is all local polar coordinates.
-			ang = max(0, ang - angl);
-			
-			view = (cos(ang) * dir + sin(ang) * ver_axis);			
-		}
-		
-		if (seeker)
-		{
-			if (flags & SMF_CURSPEED)
-				caller.vel = caller.vel.Length() * view;
-			else
-				caller.vel = caller.speed * view;
-			caller.A_FaceMovementDirection();
-		}
-		else
-		{
-			int flag = (caller.bINTERPOLATEANGLES) ? SPF_INTERPOLATE : 0;
-			caller.A_SetAngle(VectorAngle(view.x, view.y), flag);
-			caller.A_SetPitch(asin(-view.z), flag);
-		}
-		
 	}
 }

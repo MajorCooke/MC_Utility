@@ -298,7 +298,7 @@ Class MCHandler : EventHandler
 	{
 		Actor mo = e.thing;
 		
-		if (mo.bNOINTERACTION || mo is "Inventory" || mo.bNOSECTOR || 
+		if (!mo || mo.bNOINTERACTION || mo is "Inventory" || mo.bNOSECTOR || 
 			IsPlayerPawn(mo) || mo is "RandomSpawner")
 			return;
 

@@ -23,8 +23,7 @@ Class MC_Functions play
 			return damage;
 		
 		PlayerInfo player = tar.player;
-		int rawdamage = damage;
-		bool telefragDamage = (!tar.bLAXTELEFRAGDMG && rawdamage >= Actor.TELEFRAG_DAMAGE);
+		bool telefragDamage = (!tar.bLAXTELEFRAGDMG && damage >= Actor.TELEFRAG_DAMAGE);
 		bool forced = (flags & DMG_FORCED);
 		
 		// Is it spectral?
@@ -72,8 +71,10 @@ Class MC_Functions play
 								return -1;
 					}
 					
-					// This can cause some undesirable effects, if GZDoom's
-					// many override of DSD doesn't speak for itself.
+					// Do/TakeSpecialDamage can cause some undesirable effects, 
+					// such as triggering DamageMobj in some base classes. Since
+					// my mods aren't designed to really handle them at any rate,
+					// we won't be using it.
 				//	inf->DoSpecialDamage(tar, damage, mod);
 				}
 				if (damage < 0)

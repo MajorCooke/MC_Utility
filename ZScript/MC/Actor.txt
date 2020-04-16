@@ -150,8 +150,8 @@ Class MC_Functions play
 	//--------------------------------------------------------------------------
 	// StaticTurnAng
 	// 
-	// A much more realistic form of turning that isn't restricted via angle and
-	// pitch. Coded by KeksDose, modified by Major Cooke.
+	// A realistic form of turning that isn't restricted via angle and pitch.
+	// Coded by KeksDose, modified by Major Cooke.
 	// 
 	// * Caller: The actor to do the turning.
 	// * Mo: The actor Caller turn towards.

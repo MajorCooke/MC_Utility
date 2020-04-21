@@ -249,6 +249,8 @@ Class MC_Functions play
 			}
 			else return;
 		}
+		if (!(caller.vel ~== (0,0,0)))
+			caller.A_FaceMovementDirection();
 		MC_Functions.StaticTurnAng(caller, caller.tracer, angl, heightoffset, true, flags);
 	}
 }

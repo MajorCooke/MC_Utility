@@ -158,19 +158,20 @@ extend class MCHandler
 		// [1] = <command>
 		// See InputProcess for the translations (from first to second array)
 		
-		let ready = player.ReadyWeapon;
-		let pending = player.PendingWeapon;
+		Weapon ready = player.ReadyWeapon;
+		Weapon pending = player.PendingWeapon;
+		if (pending == null)	pending = WP_NOCHANGE;
 		
 		UpdateWeaponList();
 		
 		Weapon next = null;
 		if (commandStrings[1] == 'next')
 		{
-			next = WeaponList.SetNextWeapon(player);
+			next = WeaponList.SetNextWeapon(player, false, ready, pending);
 		}
 		else if (commandStrings[1] == 'prev')
 		{
-			next = WeaponList.SetNextWeapon(player, true);
+			next = WeaponList.SetNextWeapon(player, true, ready, pending);
 		}
 		else if (commandStrings[1] == 'slot')
 		{
@@ -184,10 +185,9 @@ extend class MCHandler
 			int num = s.ToInt();
 			
 			//Have a number.
-			next = WeaponList.SetSlotWeapon(player, num);
+			next = WeaponList.SetSlotWeapon(player, num, ready, pending);
 		}
-		if (!next)	next = ready;
-		if (next && next != ready)	
+		if (next && next != WP_NOCHANGE && next != ready)
 			player.PendingWeapon = next;
 		else next = null;
 		
@@ -210,6 +210,9 @@ Class MCWeaponList play
 {
 	Array<Class<Weapon> > Weapons;
 	
+	// Initializes the weapon lists by first grabbing every weapon that has a
+	// SlotNumber and SlotPriority, then sorting them out. Skips all weapons
+	// with a bad slotnumber/priority (see comment below).
 	void Init()
 	{
 		// First, just get all weapon valid classes.
@@ -268,7 +271,7 @@ Class MCWeaponList play
 				
 				// First, we need to sort out based on slot. If it's behind,
 				// switch it. This will group them all up together in DESCENDING
-				// order.
+				// order (10 -> 1).
 				if (UnSlot > WeSlot)
 				{
 					Swap(j, j+1);
@@ -276,7 +279,7 @@ Class MCWeaponList play
 				}
 				
 				// If they are the same slot, compare the priority and swap 
-				// positions. as needed.
+				// positions. as needed. Also in descending order.
 				else if (UnSlot == WeSlot)
 				{
 					if (UnDef.SlotPriority > WeDef.SlotPriority)
@@ -322,31 +325,39 @@ Class MCWeaponList play
 	// Replicates default weapon selecting just like regular GZDoom does it.
 	// This function is called when using a 'slot <X>' command.
 	//==========================================================================
-	Weapon SetSlotWeapon(PlayerInfo player, int slot)
+	Weapon SetSlotWeapon(PlayerInfo player, int slot, Weapon wep, Weapon pend) const
 	{
 		if (!player || !player.mo)	return null;
 		
 		if (slot < 0 || slot > 9)	return null;
 		
 		Actor plr = player.mo;
-		Array<Class<Weapon> > SlotWeaps; SlotWeaps.Clear();
+		if (!plr)	return null;
 		
-		int size = Weapons.Size();
-		let wep = player.ReadyWeapon;
-		let pend = player.PendingWeapon;
-		
-		// Get all applicable slot weapons and store them in a temporary array.
-		for (int i = 0; i < size; i++)
+		Array<Weapon> SlotWeaps; SlotWeaps.Clear();
+		for (let probe = plr.Inv; probe != null; probe = probe.Inv)
 		{
-			let def = GetDefaultByType(Weapons[i]);
-			if (def.SlotNumber == slot)
-				SlotWeaps.Push(Weapons[i]);
+			let weap = Weapon(probe);
+			if (weap && weap.Amount > 0 && weap.SlotNumber == slot)
+				SlotWeaps.Push(weap);
 		}
 		
-		// No weapons to select in this slot.
-		if (SlotWeaps.Size() < 1)
+		int size = SlotWeaps.Size();
+		if (size < 1) // No weapons to select in this slot.
 			return null;
+		else if (size == 1)
+			return CheckWeaponValid(SlotWeaps[0]) ? SlotWeaps[0] : null;
 		
+		// Organize it in descending order (1.0 -> 0.0)
+		for (int i = 0; i < size - 1; i++)
+			for (int j = 0; j < size - i - 1; j++)
+				if (SlotWeaps[j].SlotPriority > SlotWeaps[j+1].SlotPriority)
+				{
+					Weapon temp = SlotWeaps[j];
+					SlotWeaps[j] = SlotWeaps[j+1];
+					SlotWeaps[j+1] = temp;
+				}
+	
 		// Get the weapon at the far end of the array if the player doesn't have
 		// any selected by assigning the index to initialize failsafe measures.
 		// The weapon at the far end is the one with the highest priority while
@@ -354,20 +365,17 @@ Class MCWeaponList play
 		Weapon next = null;
 		size = SlotWeaps.Size();
 		int index = size;
-		/*
-		if (pend && pend != wep)		index = SlotWeaps.Find(pend.GetClass());
-		else */ 
-			if (wep)	index = SlotWeaps.Find(wep.GetClass());
+		
+		if (pend != WP_NOCHANGE)	index = SlotWeaps.Find(pend);
+		else if (wep)				index = SlotWeaps.Find(wep);
 		
 		if (index >= size)
 		{
 			index = size - 1;
-			next = Weapon(plr.FindInventory(SlotWeaps[index]));
+			next = SlotWeaps[index];
 			if (CheckWeaponValid(next))
-			{
 				return next;
-			}
-		}	
+		}
 		
 		// The player has a weapon so grab the next most valid one.
 		int i = index;
@@ -376,12 +384,9 @@ Class MCWeaponList play
 			--i;
 			if (i < 0)	i = size - 1;
 			
-			next = Weapon(plr.FindInventory(SlotWeaps[i]));
+			next = SlotWeaps[i];
 			if (CheckWeaponValid(next))
-			{
 				return next;
-			}
-			
 		}
 		while (i != index);
 		return null;
@@ -394,14 +399,11 @@ Class MCWeaponList play
 	// This effectively relies upon the initialized weapon array being in
 	// perfect order.
 	//==========================================================================
-	Weapon SetNextWeapon(PlayerInfo player, bool prev = false)
+	Weapon SetNextWeapon(PlayerInfo player, bool prev, Weapon wep, Weapon pend) const
 	{
 		if (!player || !player.mo)	return null;
 		Actor plr = player.mo;
-		int size = Weapons.Size();
-		Weapon wep = player.ReadyWeapon;
-		Weapon pend = player.PendingWeapon;
-		
+		int size = Weapons.Size();		
 		
 		// No weapon or not in the array. Try to find one.
 		if (!wep || Weapons.Find(wep.GetClass()) >= size)
@@ -419,19 +421,11 @@ Class MCWeaponList play
 		// The array is already sorted upon map load, so all we need to do is
 		// cycle through to the next array position and check if the weapon
 		// is valid for switching.
-		/*
-		int index = -1;
+		int index = size;
+		if (pend != WP_NOCHANGE)	index = Weapons.Find(pend.GetClass());
+		else						index = Weapons.Find(wep.GetClass());
 		
-		if (pend && wep != pend)
-		{
-			index = Weapons.Find(pend.GetClass());
-		}
-		*/
-		//else 
-		int index = Weapons.Find(wep.GetClass());
-		int i = index;
-		int pi = i;
-		int failsafe = 10;
+		int i = index, pi = i, failsafe = 10;
 		do
 		{
 			pi = i;
@@ -455,7 +449,7 @@ Class MCWeaponList play
 			
 			let next = Weapon(plr.FindInventory(Weapons[i]));
 			
-			if (pend != WP_NOCHANGE || pend == next)	continue;
+		//	if (pend != WP_NOCHANGE || pend == next)	continue;
 			
 			if (CheckWeaponValid(next))
 				return next;

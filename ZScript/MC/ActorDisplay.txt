@@ -1,5 +1,37 @@
+//==============================================================================
+// Actor Display
+// Developed by Major Cooke
+// Additional code by KeksDose (LibEye) and Marisa Kirisame (Shape2D)
+//
+// This is used to draw elements to a HUD, specifically making elements stick to
+// actors without relying on ACS hacks.
+// 
+// Used by D4D to replicate the item drop highlights from Doom 2016/Eternal and
+// Rocket Launcher Lock On Module.
+//==============================================================================
+
+
+// MCHandlerDummy 
+// This is only here because SLADE doesn't recognize functions defined in
+// extended classes unfortunately, so the highlighting won't appear. Irritating.
+Class MCHandlerDummy abstract
+{
+	private int CountShapes() { return 0; }
+	private void SetupProjectionStuff() {}
+	private void PrepareProjection() {}
+	private ui void ProcessHudElements(RenderEvent e) {}
+	private void TickShapes() {}
+	private void CleanShapes() {}
+	private void RemoveShape(MCHudShape mo) {}
+	private void AddShape(Actor target, Actor caller, String texname, 
+		Vector2 pos = (0,0), double rot = 0.0, Vector2 scale = (1,1), 
+		double scalemin = 1.0, double scalemax = 1.0,	name cv = '', 
+		double distmin = 0.0, double distmax = 0.0, name scalecvar = '') {}
+}
+
 extend class MCHandler
 {
+	// Much of this code is by KeksDose, modified by Major Cooke.
 	protected Le_ProjScreen			proj;
 	protected Le_GlScreen			gl_proj;
 	protected Le_SwScreen			sw_proj;
@@ -76,14 +108,23 @@ extend class MCHandler
 		}
 	}
 	
+	int CountShapes()
+	{
+		int count = 0;
+		for (int i = 0; i < Shapes.Size(); i++)
+		{
+			if (Shapes[i])	count++;
+		}
+		return count;
+	}
+	
 	void TickShapes()
 	{
 		int size = Shapes.Size();
 		if (size < 1)	return;
 		for (int i = 0; i < Shapes.Size(); i++)
 		{
-			let Shape = Shapes[i];
-			if (Shape)	Shape.Tick();
+			if (Shapes[i])	Shapes[i].Tick();
 		}
 	}
 	
@@ -111,21 +152,19 @@ extend class MCHandler
 	
 	void RemoveShape(MCHudShape mo)
 	{
-		for (int i = 0; i < Shapes.Size(); i++)
+		int pos = Shapes.Find(mo);
+		if (pos < Shapes.Size())
 		{
-			if (mo && mo == Shapes[i])
-			{
-				mo.Destroy();
-				Shapes[i] = null;
-				return;
-			}
+			Shapes[pos].Destroy();
+			Shapes[pos] = null;
 		}
 	}
 	
 	MCHudShape AddShape(Actor target, Actor caller, String texname, 
 	Vector2 pos = (0,0), double rot = 0.0, 
 	Vector2 scale = (1,1), double scalemin = 1.0, double scalemax = 1.0,
-	name cv = '', double distmin = 0.0, double distmax = 0.0, name scalecvar = '')
+	name cv = '', double distmin = 0.0, double distmax = 0.0, name scalecvar = '',
+	bool animate = false)
 	{
 		TextureID tex = TexMan.CheckForTexture(texname,TexMan.Type_Any);
 		if (!target || !caller || !tex)
@@ -138,7 +177,6 @@ extend class MCHandler
 		if (hud)
 		{
 			hud.alpha = 1.0;
-			
 			hud.target = target;
 			hud.caller = caller;
 			hud.SetTexture(texname, false);
@@ -151,6 +189,7 @@ extend class MCHandler
 			hud.distmin = abs(distmin);
 			hud.distmax = abs(distmax);
 			hud.ScaleCvar = scalecvar;
+			hud.animate = animate;
 			hud.Init();
 			
 			int size = Shapes.Size();
@@ -170,29 +209,75 @@ extend class MCHandler
 }
 
 //==============================================================================
-//
+// MCHudShape
+// 
+// This class is responsible for drawing things on actors, such as 
 //==============================================================================
 Class MCHudShape play
 {
-	private Vector2 siz; 		//
-	Vector2 pos, scale; 
-	double scalemin, scalemax;	// offset & scale
-	double distmin, distmax;
-	double rot, alpha;			// rotation + alpha
-	String texname;				// Texture name
-	TextureID tex;
-	Shape2D flat;
-	Shape2DTransform trans;
-	Actor target;				// Used for positioning.
-	Actor caller;				// 
-	name check;
-	bool active;
-	name ScaleCvar;
-	transient Cvar _ScaleCvar;
+	private Vector2 siz; 		// Stores the internal size of the texture.
+	private String texname;		// Texture name
+	private TextureID tex;		// Fetched texture.
+	private Shape2D flat;
+	private Shape2DTransform trans;
 	
+	Name	Check,
+			ScaleCvar;			// Name of the scaling cvar to abide. Needed
+	transient Cvar _ScaleCvar;	// since cvars cannot be saved, but Names can.
+	
+	Vector2 pos, scale; 		// offset & scale
+	double	scalemin, scalemax,	// min/max scale constraints (NOT random)
+			distmin, distmax,	// min/max distance constraints (NOT random)
+			rot, alpha;			// rotation + alpha
+			
+	Actor	target,				// Used for positioning.
+			caller;				// Only used to ensure the caller still wants it drawn.
+	bool 	active,				// Should it draw at all?
+			animate;			// Should it draw ANIMDEFS animations?
+	
+	// Recommended to leave animate false unless they possess the same size since
+	// the code does NOT adapt to the new texture's size.
+	
+	//==========================================================================
+	// Getters & Setters
+	//==========================================================================
+	
+	// Active refers to if it should draw or not.
+	void SetActive(bool on)	{ active = on;	}
+	void ToggleActive() { active = !active; }
+	
+	//--------------------------------------------------------------------------
+	// SetTexture(string texname, bool doinit)
+	// 
+	// Sets the texture name for drawing, but only if valid. This shouldn't be
+	// used to attempt to shut off the texture drawing. Use SetActive for that.
+	// 'doinit' should remain true 99.9% of the time. This ensures the drawer
+	// refreshes the bounding boxes
+	//--------------------------------------------------------------------------
+	bool SetTexture(string texname, bool doinit = true)
+	{
+		TextureID tex = TexMan.CheckForTexture(texname,TexMan.Type_Any);
+		if (tex)
+		{
+			self.texname = texname;
+			self.tex = tex;
+			if (doinit)	Init();
+			return true;
+		}
+		return false;
+	}
+	
+	//--------------------------------------------------------------------------
+	// GetTexture()
+	// 
+	// Returns the texname and current TextureID data.
+	//--------------------------------------------------------------------------
+	String, TextureID GetTexture() { return texname, tex; }
+	
+	//--------------------------------------------------------------------------
+	// Sets up the coordinates for drawing the images and the triangles.
 	void Init()
 	{
-		
 		flat = new("Shape2D");
 		
 		// simple coords
@@ -215,16 +300,21 @@ Class MCHudShape play
 		vertices[3] = ( siz.x, siz.y);
 		
 		flat.Clear(Shape2D.C_Verts);
-		for ( int i=0; i<4; i++ ) flat.PushVertex(vertices[i]);
+		for ( int i=0; i<4; i++ ) 
+			flat.PushVertex(vertices[i]);
 		
 		trans = new('Shape2DTransform');
 		active = true;
 	}
 	
+	//--------------------------------------------------------------------------
+	// Performs the rendering.
+	//--------------------------------------------------------------------------
 	ui void Render( RenderEvent e, Vector2 drawpos, double distance)
 	{	
 		if (!active || bDESTROYED || alpha <= 0.0 || distance < 1.0 || scale.x == 0.0 || scale.y == 0.0)
 			return;
+		// Reset the transformation.
 		trans.Clear();
 		
 		Vector2 ts = scale;
@@ -246,9 +336,12 @@ Class MCHudShape play
 		flat.SetTransform(trans);
 		
 		// draw the shape
-		Screen.DrawShape(tex,false,flat,DTA_Alpha, Clamp(alpha, 0.0, 1.0));
+		Screen.DrawShape(tex, animate, flat, 
+			DTA_Alpha, Clamp(alpha, 0.0, 1.0));
 	}
 	
+	// Only the tick function is capable of validating play-side information,
+	// such as getting the cvar of the player after loading a saved game.
 	virtual void Tick() 
 	{
 		if (bDESTROYED)	return;
@@ -259,25 +352,4 @@ Class MCHudShape play
 		}
 		if (!_ScaleCvar)	_ScaleCvar = Cvar.GetCvar(ScaleCvar, players[consoleplayer]);
 	}
-	
-	bool SetTexture(string texname, bool doinit = true)
-	{
-		TextureID tex = TexMan.CheckForTexture(texname,TexMan.Type_Any);
-		if (tex)
-		{
-			self.texname = texname;
-			self.tex = tex;
-			if (doinit)	
-				self.Init();
-			return true;
-		}
-		return false;
-	}
-	/*
-	override void OnDestroy()
-	{
-		Console.Printf("%s destroyed", dname);
-		Super.OnDestroy();
-	}
-	*/
 }

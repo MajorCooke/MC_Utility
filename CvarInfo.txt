@@ -14,6 +14,6 @@ user bool MC_KeyconfWeaponBuster = true;
 // 0: Regular keybinds only.
 // 1: Automap keybinds only.
 // 2: Regular keybind first, then fill in non-binds with automap keybinds.
-// 3: Vice versa of #2.
+// 3: Reverse order of #2.
 user int MC_KBPriority = 1;
 

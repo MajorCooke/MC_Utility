@@ -9,7 +9,7 @@
 // simply only spawns them when necessary and otherwise moves them around, only
 // destroying them when necessary.
 //==============================================================================
-
+#include "ZScript/MC/BeamSine.txt"
 Class MCBeam : Actor
 {
 	// Closed properties
@@ -194,7 +194,10 @@ Class MCBeam : Actor
 		
 		// If this is being spawned manually instead of by a spawner, set some
 		// things up. Otherwise, the parent beam will set everything up accordingly.
-		
+		LengthMin *= 100;
+		LengthMax *= 100;
+		WidthMin *= 100;
+		WidthMax *= 100;
 		if (!Parent)
 		{
 			int check = GetSpriteIndex(SpriteName);
@@ -206,8 +209,8 @@ Class MCBeam : Actor
 			{	ThrowAbortException("Frames parameters must be in range [Fr_A, Fr_Z]");	return;	}
 			
 			Frame = random(FrameMin, FrameMax);
-			Scale.Y = frandom(LengthMin, LengthMax);
-			Scale.X = frandom(WidthMin, WidthMax);
+			Scale = (frandom(WidthMin, WidthMax), frandom(LengthMin, LengthMax));
+			
 			Pitch += 90.0;
 			ClearInterpolation();
 			WaitTics = 0;
@@ -247,7 +250,7 @@ Class MCBeam : Actor
 		// The true length of the beam is represented as Scale.Y * 100 to 
 		// accurately replicate GZDoom units. Here, it's squared for distance 
 		// functions.
-		double SY2 = (Scale.Y * 100.0) ** 2;
+		double SY2 = (Scale.Y) ** 2;
 		
 		int WarpFlags = WARPF_NOCHECKPOSITION;
 		if (!bDONTINTERPOLATE)	WarpFlags |= WARPF_INTERPOLATE;
@@ -272,7 +275,7 @@ Class MCBeam : Actor
 			// This offsets a little too far forward unfortunately.
 			// Add forward, side and height offsets
 			origin = Parent.Pos 
-					+ ox * (Parent.Scale.Y * 100.0)	
+					+ ox * (Parent.Scale.Y)	
 					+ oy							
 					+ oz;							
 		
@@ -351,7 +354,7 @@ Class MCBeam : Actor
 			}
 			
 			if (Tracer)
-				Scale.Y = sqrt(Dist) * 0.01;
+				Scale.Y = sqrt(Dist);
 		}
 	}
 	
@@ -363,8 +366,7 @@ Class MCBeam : Actor
 		
 		// Perform movement code here.
 		Scale.Y = frandom(LengthMin, LengthMax);
-		double SY = Scale.Y * 100.0;
-		double SY2 = SY ** 2;
+		double SY2 = Scale.Y ** 2;
 		Dist = 0;
 		
 		// Never check for the position. That's extremely resource intensive.
@@ -385,7 +387,7 @@ Class MCBeam : Actor
 			Tracer = Parent.Tracer;
 			Translation = Parent.Translation;
 			
-			double PSY = Parent.Scale.Y * 100.0;
+			double PSY = Parent.Scale.Y;
 			double pit = Parent.Pitch - 90.0;
 			
 			Warp(Parent, cos(pit) * PSY, 0, -sin(pit) * PSY, 0, WarpFlags);
@@ -470,7 +472,7 @@ Class MCBeam : Actor
 			}
 			
 			if (Tracer)
-				Scale.Y = sqrt(Dist) * 0.01;
+				Scale.Y = sqrt(Dist);
 		}
 	}
 	
@@ -525,7 +527,6 @@ Class MCBeamTracer : LineTracer
 	Actor src;
 	bool ThruSpecies, ThruGhost, ThruActors;
 	Name Species;
-	
 	
 	Array<Actor> actorsToIgnore;
 	Array<Class<Actor> > classesToIgnore;

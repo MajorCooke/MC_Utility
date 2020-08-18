@@ -1,0 +1,66 @@
+class MC_kShape : Shape2d
+{
+	vector2 offset; //for rendering letters only atm
+	vector2 scale; //same
+	double angle;
+	
+	Shape2DTransform transform;
+	private Vector2 points[4];
+	textureID tex;
+	int renderStyle;
+	color fillColor;
+	double alpha;
+
+	void ApplyTransform()
+	{
+		transform.clear();
+		transform.rotate(angle);
+		transform.scale(scale);
+		transform.translate(offset);
+		setTransform(transform);
+	}
+
+	static clearscope MC_kShape init(string image, int renderStyle = STYLE_Translucent, color fillColor = color("FFFFFF"), double alpha = 1.0)
+	{
+		let s = new("MC_kShape");
+		s.tex = TexMan.checkForTexture(image, TexMan.Type_Any);
+		s.PushCoord((0,0));
+		s.PushCoord((1,0));
+		s.PushCoord((0,1));
+		s.PushCoord((1,1));
+		s.PushTriangle(0,2,1);
+		s.PushTriangle(2,3,1);
+		s.renderStyle = renderStyle;
+		s.fillColor = fillColor;
+		s.alpha = alpha;
+		s.transform = new("Shape2DTransform");
+		return s;
+	}
+	
+	void ExplicitPos(vector2 v1, vector2 v2, vector2 v3, vector2 v4) //use this to manually set the 4 vertices. Must be called at least once. 
+	{
+		self.Clear(MC_kShape.C_Verts);
+		points[0] = v1;
+		points[1] = v2;
+		points[2] = v3;
+		points[3] = v4;
+		for ( int i=0; i<4; i++ )
+		{
+			self.PushVertex(points[i]); 
+		}
+	}
+	
+	void skew( double amount = 0.5)
+	{
+		for ( int i=0; i<4; i++ )
+		{
+			points[i].x += points[i].y*amount; //skew everything for "isometric" projection
+			points[i].y -= points[i].y*amount;
+			self.PushVertex(points[i]);
+		}
+	}
+	ui void Drawer(bool animate = true)
+	{
+		Screen.DrawShape(tex,animate,self,DTA_LEGACYRENDERSTYLE, renderStyle, DTA_ColorOverlay, fillColor, DTA_Alpha, alpha);
+	}
+}

@@ -1,0 +1,415 @@
+// Code by Kodi
+//#include "ZScript/Kodi/KodiBeams.txt"
+#include "ZScript/Kodi/KodiShape.txt"
+
+class MC_kSpring
+{
+    vector3 pos;
+    vector3 vel;
+    
+    static vector3 QuickSpring(vector3 restpos, vector3 curpos, double k)
+    {
+        vector3 x = level.vec3diff(restpos, curpos); 
+        return -k*x;
+    }
+    
+    static vector3 FancySpring(vector3 restpos, vector3 curpos, vector3 relativeVelocity, double k, double b)
+    {
+        vector3 f; //force
+        vector3 v = relativeVelocity;
+        vector3 x = level.vec3diff(restpos, curpos); 
+        
+        F = -(k*x) + (b*v);
+        return f;
+    }
+	
+	static vector3 FancySpringAngles(vector3 restpos, vector3 curpos, vector3 relativeVelocity, double k, double b)
+	{
+		vector3 v = relativeVelocity;
+		vector3 x = restpos - curpos;
+		x.X = -Actor.DeltaAngle(restpos.x, curpos.x);
+		return -(k*x) + (b*v);
+	}
+    
+	static double DampedSpringDouble(double restpos, double curpos, double v, double k, double b)
+	{
+		double x = restpos-curpos;
+		return -(k*x) + (b*v);
+	}
+	
+	static double DampedSpringAngle(double restpos, double curpos, double v, double k, double b)
+	{
+		double x = -Actor.DeltaAngle(restpos, curpos);
+		return -(k*x) + (b*v);
+	}
+	
+}
+
+/*
+action void GravGrab(MC_kSpring j, actor t, vector3 baseJointPosition, vector3 baseJointDirection)
+{
+
+	vector3 firstSpring;
+	vector3 secondSpring;
+	firstSpring = baseJointPosition + baseJointDirection*50;
+	j.pos += j.vel;
+	
+	//double dist = vec3diff(playerCameFEAR_Autocannon_fire.wavraPos, t.pos).length(); 
+	j.vel +=MC_kSpring.FancySpring(firstSpring, j.pos, self.vel-j.vel, 0.3, 0.4);
+	
+	secondSpring = j.pos + level.vec3Diff( baseJointPosition, j.Pos).unit()*75;
+	//spawn("MC_Dot", j.pos);
+	t.vel += MC_kSpring.FancySpring(secondSpring, t.pos+(0,0,t.height*0.5), j.vel - t.vel, 0.1, 0.3);
+	t.bSlidesOnWalls = true;
+}
+
+	double angvel;
+	double desiredAngle; // set this to what you want it to end up as eventually
+	double springAngle()
+	{
+		angvel += MC_kSpring.DampedSpringDouble(desiredangle, angle, angvel, someDouble, otherDouble);
+		angle += angvel; 
+	}
+
+*/
+
+class MC_Vec3Wrapper //for dynamic vector arrays
+{
+	vector3 pos;
+	
+	static MC_Vec3Wrapper init(vector3 vector)
+	{
+		MC_Vec3Wrapper vec = new("MC_vec3wrapper");
+		vec.pos = vector;
+		return vec;
+	}
+}
+
+class MC_KMath //rename all instances of this prefix to you own mods prefix
+{
+	static int sign(double val) 
+	{
+		if (val > 0) 
+			return 1;
+		if (val < 0) 
+			return -1;
+		return 0;
+	}
+	
+	static vector2 PspriteAbsolutePos(double x, double y)
+	{
+		vector2 ret = (x, y);
+		double w = screen.GetWidth();
+		double h = screen.GetHeight();
+		Double aspct_43 = 1.333333 / screen.GetAspectRatio();
+		ret.x = ((ret.x / (160.0 / aspct_43)) * w * 0.5) + (w * 0.5);
+		ret.y = ((ret.y/ 100.0) * h * 0.5) + (h * 0.5);
+		return ret;
+	}
+	
+	static const double MTP[] = {0, 0, -0.5, 0.212661, -0.154506, -0.425327, -0.081228, -0.249998, -0.425327, 0.361804, -0.262863, -0.22361, 0.212661, -0.154506, -0.425327, 0.425324, 0, -0.262868, 0, 0, -0.5, -0.081228, -0.249998, -0.425327, -0.262865, 0, -0.425326, 0, 0, -0.5, -0.262865, 0, -0.425326, -0.081228, 0.249998, -0.425327, 0, 0, -0.5, -0.081228, 0.249998, -0.425327, 0.212661, 0.154506, -0.425327, 0.361804, -0.262863, -0.22361, 0.425324, 0, -0.262868, 0.475529, -0.154506, 0, -0.138194, -0.425325, -0.22361, 0.131434, -0.404506, -0.262869, 0, -0.5, 0, -0.447213, 0, -0.223608, -0.344095, -0.249998, -0.262868, -0.475529, -0.154506, 0, -0.138194, 0.425325, -0.22361, -0.344095, 0.249998, -0.262868, -0.293893, 0.404508, 0, 0.361804, 0.262863, -0.22361, 0.131434, 0.404506, -0.262869, 0.293893, 0.404508, 0, 0.361804, -0.262863, -0.22361, 0.475529, -0.154506, 0, 0.293893, -0.404508, 0, -0.138194, -0.425325, -0.22361, 0, -0.5, 0, -0.293893, -0.404508, 0, -0.447213, 0, -0.223608, -0.475529, -0.154506, 0, -0.475529, 0.154506, 0, -0.138194, 0.425325, -0.22361, -0.293893, 0.404508, 0, 0, 0.5, 0, 0.361804, 0.262863, -0.22361, 0.293893, 0.404508, 0, 0.475529, 0.154506, 0, 0.138194, -0.425325, 0.22361, 0.344095, -0.249998, 0.262868, 0.081228, -0.249998, 0.425327, -0.361804, -0.262863, 0.22361, -0.131434, -0.404506, 0.262869, -0.212661, -0.154506, 0.425327, -0.361804, 0.262863, 0.22361, -0.425324, 0, 0.262868, -0.212661, 0.154506, 0.425327, 0.138194, 0.425325, 0.22361, -0.131434, 0.404506, 0.262869, 0.081228, 0.249998, 0.425327, 0.447213, 0, 0.223608, 0.344095, 0.249998, 0.262868, 0.262865, 0, 0.425326, 0.262865, 0, 0.425326, 0.081228, 0.249998, 0.425327, 0, 0, 0.5, 0.262865, 0, 0.425326, 0.344095, 0.249998, 0.262868, 0.081228, 0.249998, 0.425327, 0.344095, 0.249998, 0.262868, 0.138194, 0.425325, 0.22361, 0.081228, 0.249998, 0.425327, 0.081228, 0.249998, 0.425327, -0.212661, 0.154506, 0.425327, 0, 0, 0.5, 0.081228, 0.249998, 0.425327, -0.131434, 0.404506, 0.262869, -0.212661, 0.154506, 0.425327, -0.131434, 0.404506, 0.262869, -0.361804, 0.262863, 0.22361, -0.212661, 0.154506, 0.425327, -0.212661, 0.154506, 0.425327, -0.212661, -0.154506, 0.425327, 0, 0, 0.5, -0.212661, 0.154506, 0.425327, -0.425324, 0, 0.262868, -0.212661, -0.154506, 0.425327, -0.425324, 0, 0.262868, -0.361804, -0.262863, 0.22361, -0.212661, -0.154506, 0.425327, -0.212661, -0.154506, 0.425327, 0.081228, -0.249998, 0.425327, 0, 0, 0.5, -0.212661, -0.154506, 0.425327, -0.131434, -0.404506, 0.262869, 0.081228, -0.249998, 0.425327, -0.131434, -0.404506, 0.262869, 0.138194, -0.425325, 0.22361, 0.081228, -0.249998, 0.425327, 0.081228, -0.249998, 0.425327, 0.262865, 0, 0.425326, 0, 0, 0.5, 0.081228, -0.249998, 0.425327, 0.344095, -0.249998, 0.262868, 0.262865, 0, 0.425326, 0.344095, -0.249998, 0.262868, 0.447213, 0, 0.223608, 0.262865, 0, 0.425326, 0.475529, 0.154506, 0, 0.344095, 0.249998, 0.262868, 0.447213, 0, 0.223608, 0.475529, 0.154506, 0, 0.293893, 0.404508, 0, 0.344095, 0.249998, 0.262868, 0.293893, 0.404508, 0, 0.138194, 0.425325, 0.22361, 0.344095, 0.249998, 0.262868, 0, 0.5, 0, -0.131434, 0.404506, 0.262869, 0.138194, 0.425325, 0.22361, 0, 0.5, 0, -0.293893, 0.404508, 0, -0.131434, 0.404506, 0.262869, -0.293893, 0.404508, 0, -0.361804, 0.262863, 0.22361, -0.131434, 0.404506, 0.262869, -0.475529, 0.154506, 0, -0.425324, 0, 0.262868, -0.361804, 0.262863, 0.22361, -0.475529, 0.154506, 0, -0.475529, -0.154506, 0, -0.425324, 0, 0.262868, -0.475529, -0.154506, 0, -0.361804, -0.262863, 0.22361, -0.425324, 0, 0.262868, -0.293893, -0.404508, 0, -0.131434, -0.404506, 0.262869, -0.361804, -0.262863, 0.22361, -0.293893, -0.404508, 0, 0, -0.5, 0, -0.131434, -0.404506, 0.262869, 0, -0.5, 0, 0.138194, -0.425325, 0.22361, -0.131434, -0.404506, 0.262869, 0.293893, -0.404508, 0, 0.344095, -0.249998, 0.262868, 0.138194, -0.425325, 0.22361, 0.293893, -0.404508, 0, 0.475529, -0.154506, 0, 0.344095, -0.249998, 0.262868, 0.475529, -0.154506, 0, 0.447213, 0, 0.223608, 0.344095, -0.249998, 0.262868, 0.293893, 0.404508, 0, 0, 0.5, 0, 0.138194, 0.425325, 0.22361, 0.293893, 0.404508, 0, 0.131434, 0.404506, -0.262869, 0, 0.5, 0, 0.131434, 0.404506, -0.262869, -0.138194, 0.425325, -0.22361, 0, 0.5, 0, -0.293893, 0.404508, 0, -0.475529, 0.154506, 0, -0.361804, 0.262863, 0.22361, -0.293893, 0.404508, 0, -0.344095, 0.249998, -0.262868, -0.475529, 0.154506, 0, -0.344095, 0.249998, -0.262868, -0.447213, 0, -0.223608, -0.475529, 0.154506, 0, -0.475529, -0.154506, 0, -0.293893, -0.404508, 0, -0.361804, -0.262863, 0.22361, -0.475529, -0.154506, 0, -0.344095, -0.249998, -0.262868, -0.293893, -0.404508, 0, -0.344095, -0.249998, -0.262868, -0.138194, -0.425325, -0.22361, -0.293893, -0.404508, 0, 0, -0.5, 0, 0.293893, -0.404508, 0, 0.138194, -0.425325, 0.22361, 0, -0.5, 0, 0.131434, -0.404506, -0.262869, 0.293893, -0.404508, 0, 0.131434, -0.404506, -0.262869, 0.361804, -0.262863, -0.22361, 0.293893, -0.404508, 0, 0.475529, -0.154506, 0, 0.475529, 0.154506, 0, 0.447213, 0, 0.223608, 0.475529, -0.154506, 0, 0.425324, 0, -0.262868, 0.475529, 0.154506, 0, 0.425324, 0, -0.262868, 0.361804, 0.262863, -0.22361, 0.475529, 0.154506, 0, 0.212661, 0.154506, -0.425327, 0.131434, 0.404506, -0.262869, 0.361804, 0.262863, -0.22361, 0.212661, 0.154506, -0.425327, -0.081228, 0.249998, -0.425327, 0.131434, 0.404506, -0.262869, -0.081228, 0.249998, -0.425327, -0.138194, 0.425325, -0.22361, 0.131434, 0.404506, -0.262869, -0.081228, 0.249998, -0.425327, -0.344095, 0.249998, -0.262868, -0.138194, 0.425325, -0.22361, -0.081228, 0.249998, -0.425327, -0.262865, 0, -0.425326, -0.344095, 0.249998, -0.262868, -0.262865, 0, -0.425326, -0.447213, 0, -0.223608, -0.344095, 0.249998, -0.262868, -0.262865, 0, -0.425326, -0.344095, -0.249998, -0.262868, -0.447213, 0, -0.223608, -0.262865, 0, -0.425326, -0.081228, -0.249998, -0.425327, -0.344095, -0.249998, -0.262868, -0.081228, -0.249998, -0.425327, -0.138194, -0.425325, -0.22361, -0.344095, -0.249998, -0.262868, 0.425324, 0, -0.262868, 0.212661, 0.154506, -0.425327, 0.361804, 0.262863, -0.22361, 0.425324, 0, -0.262868, 0.212661, -0.154506, -0.425327, 0.212661, 0.154506, -0.425327, 0.212661, -0.154506, -0.425327, 0, 0, -0.5, 0.212661, 0.154506, -0.425327, -0.081228, -0.249998, -0.425327, 0.131434, -0.404506, -0.262869, -0.138194, -0.425325, -0.22361, -0.081228, -0.249998, -0.425327, 0.212661, -0.154506, -0.425327, 0.131434, -0.404506, -0.262869, 0.212661, -0.154506, -0.425327, 0.361804, -0.262863, -0.22361, 0.131434, -0.404506, -0.262869};
+
+	static double VRand (double val) //gaussian distribution random table. Useful for weapon spread. Got this from anon on /vr/.
+	{
+		static const double nums[]= 
+		{
+			-1.000000, -0.921894, -0.873569, -0.837926, -0.809423, -0.785531, -0.764879, -0.746633, -0.730251, -0.715355, -0.701676, -0.689010, -0.677204, -0.666136, -0.655709, -0.645844,
+			-0.636477, -0.627553, -0.619027, -0.610861, -0.603021, -0.595478, -0.588207, -0.581186, -0.574397, -0.567821, -0.561444, -0.555251, -0.549231, -0.543373, -0.537665, -0.532101,
+			-0.526670, -0.521366, -0.516181, -0.511109, -0.506145, -0.501282, -0.496516, -0.491843, -0.487257, -0.482755, -0.478333, -0.473988, -0.469716, -0.465515, -0.461380, -0.457311,
+			-0.453304, -0.449356, -0.445466, -0.441631, -0.437850, -0.434120, -0.430440, -0.426808, -0.423222, -0.419681, -0.416183, -0.412727, -0.409312, -0.405936, -0.402598, -0.399297,
+			-0.396032, -0.392802, -0.389606, -0.386442, -0.383310, -0.380210, -0.377139, -0.374098, -0.371086, -0.368101, -0.365143, -0.362212, -0.359306, -0.356426, -0.353570, -0.350738,
+			-0.347929, -0.345143, -0.342378, -0.339636, -0.336915, -0.334214, -0.331533, -0.328872, -0.326231, -0.323608, -0.321004, -0.318418, -0.315849, -0.313297, -0.310763, -0.308245,
+			-0.305743, -0.303257, -0.300787, -0.298331, -0.295891, -0.293465, -0.291054, -0.288656, -0.286273, -0.283903, -0.281546, -0.279202, -0.276870, -0.274551, -0.272245, -0.269950,
+			-0.267667, -0.265396, -0.263136, -0.260888, -0.258650, -0.256423, -0.254206, -0.252000, -0.249804, -0.247618, -0.245442, -0.243276, -0.241119, -0.238971, -0.236832, -0.234703,
+			-0.232582, -0.230470, -0.228366, -0.226271, -0.224184, -0.222105, -0.220035, -0.217972, -0.215916, -0.213869, -0.211828, -0.209795, -0.207770, -0.205751, -0.203739, -0.201734,
+			-0.199736, -0.197745, -0.195760, -0.193781, -0.191809, -0.189843, -0.187883, -0.185929, -0.183981, -0.182038, -0.180102, -0.178171, -0.176245, -0.174325, -0.172411, -0.170501,
+			-0.168597, -0.166698, -0.164804, -0.162915, -0.161030, -0.159150, -0.157275, -0.155405, -0.153539, -0.151678, -0.149821, -0.147968, -0.146119, -0.144275, -0.142435, -0.140598,
+			-0.138766, -0.136938, -0.135113, -0.133292, -0.131475, -0.129661, -0.127851, -0.126044, -0.124241, -0.122441, -0.120645, -0.118851, -0.117061, -0.115274, -0.113490, -0.111709,
+			-0.109931, -0.108156, -0.106384, -0.104615, -0.102848, -0.101084, -0.099322, -0.097563, -0.095807, -0.094053, -0.092302, -0.090553, -0.088806, -0.087061, -0.085319, -0.083578,
+			-0.081840, -0.080104, -0.078370, -0.076638, -0.074908, -0.073180, -0.071453, -0.069728, -0.068005, -0.066284, -0.064564, -0.062846, -0.061130, -0.059415, -0.057701, -0.055989,
+			-0.054278, -0.052569, -0.050860, -0.049153, -0.047448, -0.045743, -0.044040, -0.042337, -0.040636, -0.038935, -0.037236, -0.035537, -0.033839, -0.032142, -0.030446, -0.028751,
+			-0.027056, -0.025362, -0.023668, -0.021975, -0.020283, -0.018591, -0.016899, -0.015208, -0.013518, -0.011827, -0.010137, -0.008447, -0.006758, -0.005068, -0.003379, -0.001689,
+			 0.000000,
+			 0.001689,  0.003379,  0.005068,  0.006758,  0.008447,  0.010137,  0.011827,  0.013518,  0.015208,  0.016899,  0.018591,  0.020283,  0.021975,  0.023668,  0.025362,  0.027056,
+			 0.028751,  0.030446,  0.032142,  0.033839,  0.035537,  0.037236,  0.038935,  0.040636,  0.042337,  0.044040,  0.045743,  0.047448,  0.049153,  0.050860,  0.052569,  0.054278,
+			 0.055989,  0.057701,  0.059415,  0.061130,  0.062846,  0.064564,  0.066284,  0.068005,  0.069728,  0.071453,  0.073180,  0.074908,  0.076638,  0.078370,  0.080104,  0.081840,
+			 0.083578,  0.085319,  0.087061,  0.088806,  0.090553,  0.092302,  0.094053,  0.095807,  0.097563,  0.099322,  0.101084,  0.102848,  0.104615,  0.106384,  0.108156,  0.109931,
+			 0.111709,  0.113490,  0.115274,  0.117061,  0.118851,  0.120645,  0.122441,  0.124241,  0.126044,  0.127851,  0.129661,  0.131475,  0.133292,  0.135113,  0.136938,  0.138766,
+			 0.140598,  0.142435,  0.144275,  0.146119,  0.147968,  0.149821,  0.151678,  0.153539,  0.155405,  0.157275,  0.159150,  0.161030,  0.162915,  0.164804,  0.166698,  0.168597,
+			 0.170501,  0.172411,  0.174325,  0.176245,  0.178171,  0.180102,  0.182038,  0.183981,  0.185929,  0.187883,  0.189843,  0.191809,  0.193781,  0.195760,  0.197745,  0.199736,
+			 0.201734,  0.203739,  0.205751,  0.207770,  0.209795,  0.211828,  0.213869,  0.215916,  0.217972,  0.220035,  0.222105,  0.224184,  0.226271,  0.228366,  0.230470,  0.232582,
+			 0.234703,  0.236832,  0.238971,  0.241119,  0.243276,  0.245442,  0.247618,  0.249804,  0.252000,  0.254206,  0.256423,  0.258650,  0.260888,  0.263136,  0.265396,  0.267667,
+			 0.269950,  0.272245,  0.274551,  0.276870,  0.279202,  0.281546,  0.283903,  0.286273,  0.288656,  0.291054,  0.293465,  0.295891,  0.298331,  0.300787,  0.303257,  0.305743,
+			 0.308245,  0.310763,  0.313297,  0.315849,  0.318418,  0.321004,  0.323608,  0.326231,  0.328872,  0.331533,  0.334214,  0.336915,  0.339636,  0.342378,  0.345143,  0.347929,
+			 0.350738,  0.353570,  0.356426,  0.359306,  0.362212,  0.365143,  0.368101,  0.371086,  0.374098,  0.377139,  0.380210,  0.383310,  0.386442,  0.389606,  0.392802,  0.396032,
+			 0.399297,  0.402598,  0.405936,  0.409312,  0.412727,  0.416183,  0.419681,  0.423222,  0.426808,  0.430440,  0.434120,  0.437850,  0.441631,  0.445466,  0.449356,  0.453304,
+			 0.457311,  0.461380,  0.465515,  0.469716,  0.473988,  0.478333,  0.482755,  0.487257,  0.491843,  0.496516,  0.501282,  0.506145,  0.511109,  0.516181,  0.521366,  0.526670,
+			 0.532101,  0.537665,  0.543373,  0.549231,  0.555251,  0.561444,  0.567821,  0.574397,  0.581186,  0.588207,  0.595478,  0.603021,  0.610861,  0.619027,  0.627553,  0.636477,
+			 0.645844,  0.655709,  0.666136,  0.677204,  0.689010,  0.701676,  0.715355,  0.730251,  0.746633,  0.764879,  0.785531,  0.809423,  0.837926,  0.873569,  0.921894,  1.000000
+		};
+		int randseed = random(0,512); 
+		double ret = nums[randseed]*val;
+		return ret;
+	}
+	
+	static vector3 SurfNormFromTrace(FLineTraceData TraceData) //gives the correct normal of a surface from a linetrace.
+	{
+		vector3 ret;
+		if(TraceData.HitType == TraceData.TRACE_HitWall) 
+		{
+			if(!TraceData.LineSide) //inverts normal for back side of wall
+			{
+				ret = (-TraceData.Hitline.delta.y, TraceData.Hitline.delta.x, 0).unit();
+			}
+			else //do it normally
+			{
+				ret = (TraceData.Hitline.delta.y, -TraceData.Hitline.delta.x, 0).unit();
+			}
+		}
+		/*
+		if ( d.HitType == TRACE_HitFloor )
+		{
+			if ( d.Hit3DFloor ) hitnormal = -d.Hit3DFloor.top.Normal;
+			else hitnormal = d.HitSector.floorplane.Normal;
+		}
+*/
+		else if (TraceData.HitType == TraceData.TRACE_HitFloor)
+		{
+			ret = TraceData.HitSector.FloorPlane.normal;
+			ret.z = -ret.z;
+		}
+		else if (TraceData.HitType == TraceData.TRACE_HitCeiling)
+		{
+			ret = TraceData.HitSector.CeilingPlane.normal;
+			ret.z = -ret.z;
+		}
+		return ret;
+	}
+	
+	static vector3 BounceNormal(vector3 MoveVector, vector3 SurfNormal) //Thanks Marisa. Calculates the bounce angle of a velocity on a normal. 
+	{
+		vector3 ret = MoveVector-2*SurfNormal*(MoveVector dot SurfNormal);
+		return ret;
+	}
+	static vector3 SlideNormal(vector3 MoveVector, Vector3 SurfNormal) //Thanks Godot's source code. Calculates the slide angle of a velocity on a normal.
+	{
+		vector3 ret = MoveVector - Surfnormal * (MoveVector dot SurfNormal);
+		return ret;
+	}
+	static vector3 CreepNormal (vector3 OldNormal, vector3 NewNormal, vector3 MoveVector) //Thanks a ton gutawer. Rotates a velocity vector of an object moving on one plane to that of another.
+    { 
+        Vector3 ret;
+        Vector3 axis = (OldNormal cross NewNormal).unit();
+        Double cosAng = OldNormal dot NewNormal;
+        Double sinAng = sin(acos(cosAng));
+        ret = MoveVector * cosAng + (axis cross MoveVector) * sinAng + axis * (axis dot MoveVector) * (1 - cosAng);
+        return ret;
+    }
+	
+	static vector2 PointOnLine2D(vector2 v, vector2 w, vector2 p) 
+	{
+		//original by user Grumdrig at StackOverflow -k
+		//https://stackoverflow.com/questions/849211/shortest-distance-between-a-point-and-a-line-segment
+	  double l2 = (v-w).length()**2;
+	  if (l2 == 0.0) return v;
+	  double t = max(0.0, min(1.0, (p - v) dot (w - v) / l2));
+	  vector2 projection = v + t * (w - v);  // Projection falls on the segment
+	  return projection;
+	}
+
+	static vector3 PointOnLine3D(vector3 v, vector3 w, vector3 p) 
+	{
+		//original by user Grumdrig at StackOverflow -k
+		//https://stackoverflow.com/questions/849211/shortest-distance-between-a-point-and-a-line-segment
+	//  double l2 = (v-w).length()*(v-w).length(); //there was pow() function here.. -k 
+	  double l2 = (v-w).length()**2;
+	  if (l2 == 0.0) return v;
+	  double t = max(0.0, min(1.0, (p - v) dot (w - v) / l2));
+	  vector3 projection = v + t * (w - v);  // Projection falls on the segment
+	  return projection;
+	}
+	
+	static vector3 Vec3FromAngle( double speed, double angle, double pitch)
+	{
+		vector3 ret;
+		double cospitch = cos(-pitch);
+		ret.X = speed * cospitch * Cos(angle);
+		ret.Y = speed * cospitch * Sin(angle);
+		ret.Z = speed * sin(-pitch);
+		return ret;
+	}
+	static vector2 AnglesFromVec3 (vector3 vec) 
+	{
+		Vector3 vecUnit = vec.unit();
+		double angle = atan2(vecUnit.y, vecUnit.x);
+		double pitch = asin(-vecUnit.z);
+		return (angle,pitch);
+	}
+	
+	static vector3 Vector3Lerp (vector3 a, vector3 b, double time) //linearly interpolates between two vector3's
+	{
+		vector3 ret;
+		ret = b*time + a*(1.0-time);
+		return ret;
+	}
+	static vector2 Vector2Lerp (vector2 a, vector2 b, double time)
+	{
+		vector2 ret;
+		ret = b*time + a*(1.0-time);
+		return ret;
+	}
+	
+	static double LerpD (double a, double b, double t) //linearly interpolates between two doubles
+	{
+		double ret;
+		ret = b*t + a*(1.0-t);
+		return ret;
+	}
+	
+	enum AxisIDs
+	{
+		AXIS_ROLL = 1, //done
+		AXIS_PITCH = 2, //done
+		AXIS_ANGLE = 3 
+	}
+	
+	static vector3 rot_3d (vector3 point, double ang, int axis) //matrix rotation on one axis 
+	{
+		vector3 ret;
+		vector3 row1;
+		vector3 row2; 
+		vector3 row3;
+
+		switch(axis)
+		{
+			case 1:
+				row1 = (1.0,		0.0,		0.0);
+				row2 = (0.0,		cos(ang),	-sin(ang));
+				row3 = (1.0,		sin(ang),	cos(ang));
+				break;
+			
+			case 2:
+				row1 = (cos(ang), 	0.0, 		sin(ang)	);
+				row2 = (0, 			1.0, 		0.0);
+				row3 = (-sin(ang),	0.0,		cos(ang)	);
+				break;
+
+			case 3:
+				row1 = (cos(ang),	-sin(ang),	0.0);
+				row2 = (sin(ang),	cos(ang),	0.0);
+				row3 = (0.0,		0.0,		1.0);
+				break;
+		}
+		ret.x = (row1.x*point.x) + (row1.y*point.y) + (row1.z * point.z);
+		ret.y = (row2.x*point.x) + (row2.y*point.y) + (row2.z * point.z);
+		ret.z = (row3.x*point.x) + (row3.y*point.y) + (row3.z * point.z);
+		return ret;
+	}
+	
+	static vector3 MatRot(vector3 point = (1,0,0), double ang = 0, double pit = 0, double rol = 0)  //not sure the order is right here.
+	{
+		vector3 ret;
+		vector3 row1;
+		vector3 row2;
+		vector3 row3;
+
+		row1 = (1.0,		0.0,		0.0);
+		row2 = (0.0,		cos(rol),	-sin(rol));
+		row3 = (1.0,		sin(rol),	cos(rol));
+
+		ret.x = (row1.x*point.x) + (row1.y*point.y) + (row1.z * point.z);
+		ret.y = (row2.x*point.x) + (row2.y*point.y) + (row2.z * point.z);
+		ret.z = (row3.x*point.x) + (row3.y*point.y) + (row3.z * point.z);
+		point = ret;
+		
+		row1 = (cos(pit), 	0.0, 		sin(pit));
+		row2 = (0, 			1.0, 		0.0);
+		row3 = (-sin(pit),	0.0,		cos(pit)); 
+
+		ret.x = (row1.x*point.x) + (row1.y*point.y) + (row1.z * point.z);
+		ret.y = (row2.x*point.x) + (row2.y*point.y) + (row2.z * point.z);
+		ret.z = (row3.x*point.x) + (row3.y*point.y) + (row3.z * point.z);
+		point = ret;
+		
+		row1 = (cos(ang),	-sin(ang),	0.0);
+		row2 = (sin(ang),	cos(ang),	0.0);
+		row3 = (0.0,		0.0,		1.0);
+		
+		ret.x = (row1.x*point.x) + (row1.y*point.y) + (row1.z * point.z);
+		ret.y = (row2.x*point.x) + (row2.y*point.y) + (row2.z * point.z);
+		ret.z = (row3.x*point.x) + (row3.y*point.y) + (row3.z * point.z);
+		
+		
+		
+		
+		
+		return ret;
+	}
+	
+	static double magnitudeTwo_f(double x, double y) //converted from commonfuncs.acs
+	{
+		double len, ang;
+
+		ang = VectorAngle(x, y);
+		if (((ang + 45.0) % 180.0) > 90.0) 
+		{
+			len = y / sin(ang); 
+		}
+		else 
+		{ 
+			len = x / cos(ang); 
+		}
+
+		return len;
+	}
+
+	static vector2 ScreenToAngles (vector2 screenPoint, double fov, double Angle, double pitch) //converted from ACS, not completely accurate
+	{
+		double crossX = screenPoint.x;
+		double crossY = screenPoint.y;
+		double ratio_43 = 1.3333333333333333333333333333333;
+		double screenWidth = double(Screen.GetWidth());
+		double screenHeight = double(Screen.GetHeight());
+		double ratio_current = screenWidth / screenHeight;
+		if ((screenWidth == 320.0 && screenHeight == 200.0) || (screenWidth == 640.0 && screenHeight == 400.0))
+		{
+			ratio_current = ratio_current / 1.2;
+		}
+		double curFov = fov;
+		double camDist = 0.5	/	(sin(curFov*0.5)	/	cos(curFov*0.5));
+		double centerX = crossX -0.5;
+		double centerY = crossY -0.5;
+		
+		double scaledX = centerX * (ratio_current / ratio_43);
+			   
+		//double scaledy = centerY / 1.6; // another 5:6 pixel ratio thing 
+		double scaledy = centerY / (1.0+(0.6*abs(cos(pitch)))); //the above from the original ACS script altered by me. Absurd non-square pixels stuff.
+			   scaledX *= 1.0+(0.2*abs(sin(pitch)));//The same. Scales the X coordinate by applying crazy shit.
+		double crossAngle = -VectorAngle(camDist, ScaledX);
+		double crossPitch = VectorAngle(magnitudeTwo_f(camDist,scaledX), scaledY);
+		
+		double unitCrossX = cos(crossAngle) * cos(crossPitch);
+		double unitCrossY = sin(crossAngle) * cos(crossPitch);
+		double unitCrossZ = sin(crossPitch);
+	
+		double myAngle = Angle;
+		double myPitch = Pitch;
+		
+		double rotatedX = (unitCrossX * (cos(myAngle) * cos(myPitch)))
+						- (unitCrossY * sin(myAngle))
+						+ (unitCrossZ * (cos(myAngle) * sin(myPitch)));
+						
+		double rotatedY = (unitCrossX * (sin(myAngle) * cos(myPitch)))
+						+ (unitCrossY * cos(myAngle))
+						+ (unitCrossZ * (sin(myAngle) * sin(myPitch)));
+						
+		double rotatedZ = (unitCrossX * -sin(myPitch))
+						+ (unitCrossZ * cos(myPitch));
+						
+		double rotatedAngle = VectorAngle(rotatedX, rotatedY);
+		double rotatedPitch = VectorAngle(magnitudeTwo_f(rotatedX, rotatedY), rotatedz);		
+		
+		return (rotatedAngle, rotatedPitch); 
+	}
+}
+	

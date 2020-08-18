@@ -1,0 +1,530 @@
+//==============================================================================
+// Beams
+//
+// Developed by Major Cooke
+// Derived from Marisa Kirisami's Unreal beams
+
+// These beams are far superior to the ones I originally developed. Instead of
+// constantly spawning effects and letting them destroy themselves, this
+// simply only spawns them when necessary and otherwise moves them around, only
+// destroying them when necessary.
+//==============================================================================
+
+Class MCBeamFlow : Actor
+{
+	// Closed properties
+//	private MC_QuatTurner Turner;
+	transient private MCBeamFlowTracer trc;
+	private bool TimeFreeze;
+	
+	protected Vector3 
+		SineTheta,
+		SineOffset,
+		SineSpeed,
+		SineDist,
+		HoldPos,
+		HoldAPR;
+	
+	protected double Percent;
+	meta double 
+		SOX, SOY, SOZ,		// Sine Offsets. These are all added to each child.
+		SSX1, SSY1, SSZ1, 	// Random ranges for the speed of wave progression.
+		SSX2, SSY2, SSZ2,	// 1 is min, 2 is max.
+		SDX1, SDY1, SDZ1,	// Random range wave height.
+		SDX2, SDY2, SDZ2;
+	
+	protected int WaitTics;
+	protected int Timer;
+	protected int BeamCount;
+	protected bool KeepKid;
+	protected double Dist;
+	protected MCBeamFlow Parent, Child, First;
+	protected Actor Spawner;
+	
+	
+	// Open properties
+	Name 	SpriteName;
+	int		FrameMin, FrameMax,
+			TimeLimitMin, TimeLimitMax,
+			MaxBeams,
+			TicsMin, TicsMax;
+	
+	double 	Length,	Width,
+			OffX, OffY, OffZ,
+			AimOffset, 
+			TurnLimit, TurnDist;
+			
+	bool	UseDeathState;
+			
+	meta bool NeedTarget;
+			
+	//--------------------------------------------------------------------------
+	// Properties
+	//--------------------------------------------------------------------------
+	
+	// The sine theta to start off with, and add to all children. The first beam
+	// will always randomize its theta: (SineOffset * frandom(1,360)) % 360
+	Property SineOffset:		SOX, SOY, SOZ;
+	
+	// Min/max speed amplifier, set by the first beam and passed to all children.
+	Property SineSpeedMin:		SSX1, SSY1, SSZ1;
+	Property SineSpeedMax:		SSX2, SSY2, SSZ2;
+	
+	// Min/max wave size.
+	Property SineDistMin:		SDX1, SDY1, SDZ1;
+	Property SineDistMax:		SDX2, SDY2, SDZ2;
+	
+	// Require a target?
+	Property NeedTarget:		NeedTarget;
+	
+	// Jump to death state instead of disappearing once finished.
+	Property UseDeathState:		UseDeathState;
+	
+	// The sprite's four letters, i.e. ZOMB in 'ZOMB A 0'
+	Property SpriteName:		SpriteName;
+	
+	// The sprite's frame ranges, from Fr_A to Fr_Z. This propagates to the
+	// rest of the beams too.
+	// 
+	// I.e. 'MCBeamFlow.Frames Fr_C, Fr_G;' is equivalent to the following DECORATE code:
+	//
+	//	Select:
+	//		TNT1 A 0 A_Jump(256,1,2,3,4,5)
+	//		ZOMB CDEFG 0 A_Jump(256,"Play")
+	//	Play:
+	//		"----" A 1 A_DoStuff
+	Property Frames:			FrameMin, FrameMax;
+	
+	// Beam Length/width
+	Property Length:			Length;
+	Property Width:				Width;
+	
+	// Maximum number of beams to spawn. The greater the number, the longer the
+	// effect can reach.
+	Property MaxBeams:			MaxBeams;
+	
+	// Total lifetime this can last.
+	Property TimeLimit:			TimeLimitMin, TimeLimitMax;
+	
+	// Turns this much whenever near the target.
+	Property Turn:				TurnLimit, TurnDist;
+	Property TurnLimit:			TurnLimit;
+	Property TurnDist:			TurnDist;
+	
+	// Relative offsets from the target's position
+	Property Offsets:			OffX, OffY, Offz;
+	
+	// Height range. 0 = tracer's base, 1 = top of tracer.
+	Property AimOffset:			AimOffset;
+	
+	Default
+	{
+		MCBeamFlow.UseDeathState false;
+		MCBeamFlow.MaxBeams 25;
+		MCBeamFlow.SineOffset	 5, 12, 12;
+		MCBeamFlow.SineSpeedMin  1,	01, 03;
+		MCBeamFlow.SineSpeedMax  1,	01, 03;
+		MCBeamFlow.SineDistMin 	 1, 05, 05;
+		MCBeamFlow.SineDistMax 	 1, 15, 15;
+		MCBeamFlow.Turn 30, 128;
+		MCBeamFlow.Length 10.5;
+		MCBeamFlow.Width 5.4;
+		//MCBeamFlow.Offsets 10.0, 4.1, -2.7; // For weapons
+		MCBeamFlow.AimOffset 0.5;
+		MCBeamFlow.Offsets 0.0, 0.0, 0.0;
+		MCBeamFlow.NeedTarget true;
+		RenderStyle "Add";
+		Radius 1;
+		Height 1;
+		XScale 0.1;
+		YScale 1.0;
+		+BRIGHT
+		+NOINTERACTION
+		+NOBLOCKMAP
+	}
+	
+	// Propagates the chain of children, ensuring they all follow through.
+	void SetKeeping(bool keep)
+	{
+		KeepKid = keep;
+		if (Child)	Child.SetKeeping(keep);
+	}
+	
+	override void OnDestroy()
+	{
+		if (Child && !KeepKid)
+		{
+			Child.Destroy();
+		}
+		Super.OnDestroy();
+	}
+	
+	// For whatever fancy effects can happen, use the death state. Disables
+	// child chain destruction so they can disappear on their own whenever they want.
+	// Only applies if UseDeathState is true. Otherwise, destroy it.
+	override void Die(Actor source, Actor inflictor, int dmgflags, Name MeansOfDeath)
+	{
+		if (bKILLED)	return;
+		
+		bKILLED = true;
+		
+		// Only the parent should call this since this will propagate into
+		// children, and they'll call it needlessly over and over again.
+		if (!Parent)	
+			SetKeeping(UseDeathState);
+			
+		if (UseDeathState)
+		{
+			if (Child)		Child.Die(source, inflictor, dmgflags, MeansOfDeath);
+			SetState(ResolveState("Death"));
+		}
+		else	{ 	Destroy(); return;	}
+	}
+	
+	
+	// Set up the scaling times, sprite/frames and validate them all.
+	override void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		
+		// If this is being spawned manually instead of by a spawner, set some
+		// things up. Otherwise, the parent beam will set everything up accordingly.
+		
+		SineOffset = (SOX, SOY, SOZ);
+		if (!Parent)
+		{
+			int check = GetSpriteIndex(SpriteName);
+			if (check < 0)
+			{	ThrowAbortException("SpriteName is bad! Check to make sure it's defined!");	return;	}
+			Sprite = check;
+			
+			if (FrameMin < Fr_A || FrameMin > Fr_Z || FrameMax < Fr_A || FrameMax > Fr_Z)
+			{	ThrowAbortException("Frames parameters must be in range [Fr_A, Fr_Z]");	return;	}
+			
+			Frame = random(FrameMin, FrameMax);
+			Scale = (Width, Length);
+			Pitch += 90.0;
+			
+			
+			SineDist = (frandom(SDX1, SDX2), frandom(SDY1, SDY2), frandom(SDZ1, SDZ2));
+			SineSpeed = (frandom(SSX1, SSX2), frandom(SSY1, SSY2), frandom(SSZ1, SSZ2));
+			SetTheta((
+				SOX * frandom[b1](1.0, 360.0),
+				SOY * frandom[b2](1.0, 360.0),
+				SOZ * frandom[b3](1.0, 360.0)));
+		}
+		ClearInterpolation();
+	}
+	
+	//==========================================================================
+	// Custom Functions
+	//==========================================================================
+	
+	//--------------------------------------------------------------------------
+	// Updates the beam and moves it and child beams about.
+	// Current edition. Stable.
+	
+	void StraightenBeams()
+	{
+		if (bKILLED)	return;
+		
+		TimeFreeze = !bNOTIMEFREEZE;
+		bNOTIMEFREEZE = true;
+		
+		Percent = 1.0;
+		HoldPos = pos;
+		HoldAPR = (Angle, Pitch, Roll);
+		
+		// Perform movement code here.
+	//	double SY2 = (Length * 2) ** 2;
+		
+		// Never check for the position. That's extremely resource intensive.
+		int WarpFlags = WARPF_NOCHECKPOSITION;
+		int InterpFlags = 0;
+		Scale = (Width, Length);
+		Dist = Scale.Y;
+		
+		// Move to the parent's end point based on the scale.
+		if (Parent)
+		{
+			Tracer = Parent.Tracer;
+			Frame = Parent.Frame;
+			Translation = Parent.Translation;
+			
+			double PSY = Parent.Scale.Y;
+			double pit = Parent.Pitch - 90.0;
+			
+			Warp(Parent, cos(pit) * PSY, 0, -sin(pit) * PSY, 0, WarpFlags);
+			Angle = Parent.Angle;
+			Pitch = Parent.Pitch;
+		}
+		else if (Target)
+		{
+			Frame = random(FrameMin, FrameMax);
+			Vector3 x, y, z;
+			[x, y, z] = MC_CoordUtil.GetAxes(target.pitch, target.angle, target.roll);
+			double zz = (Target.Player) ? Target.Player.Viewz - Target.Pos.Z : 0;
+			Vector3 origin = target.Vec3Offset(0,0,zz) + OffX * x + OffY * y + OffZ * z;
+			Warp(Target, origin.x, origin.y, origin.z, 0, WarpFlags|WARPF_ABSOLUTEPOSITION);
+			Pitch -= 90;
+			A_FaceTracer(0,0,0,0,FAF_MIDDLE);
+			Pitch += 90;
+			
+		}
+		ClearInterpolation();
+		
+		// Movement complete. Now handle the children.
+		// Perform a trace to the intended target to get the distance. The old
+		// method of simply doing a Distance3DSquared no longer works here since
+		// the sine waves heavily displace the beams.
+		
+	
+		if (!trc)	trc = new('MCBeamFlowTracer');
+		trc.trg = Tracer;
+		double pit = pitch - 90;
+		Vector3 viewVector = (cos(angle)*cos(pit),sin(angle)*cos(pit),-sin(pit));
+		trc.Trace(pos, CurSector, viewVector, Dist, 0);
+		bool hit = false;
+		Switch(trc.Results.HitType)
+		{
+			Case TRACE_HitFloor:
+			Case TRACE_HitCeiling:
+			Case TRACE_HitWall:
+			Case TRACE_HitActor:
+				Dist = trc.Results.Distance;
+				hit = true;
+				break;
+		}			
+		
+		if (!hit)
+		{
+			if (Child)
+			{
+				if (!Parent)	First = self;
+				Child.First = First;
+			}
+			else if ((BeamCount < MaxBeams))
+			{
+				Child = MCBeamFlow(Spawn(GetClass(), pos));
+				Child.Parent = self;
+				Child.Sprite = Sprite;
+				Child.Frame = Frame;
+				Child.Tracer = Tracer;
+				Child.Target = Target;
+				Child.Master = Master;
+				Child.Angle = Angle;
+				Child.Pitch = Pitch;
+				Child.Translation = Translation;
+				Child.BeamCount = BeamCount + 1;
+				Child.SineDist = SineDist;
+				Child.SineSpeed = SineSpeed;
+				Child.SineTheta = SineTheta;
+				if (!Parent)	First = self;
+				Child.First = First;
+			}
+		}
+		else
+		{
+			if (Child)	
+			{
+				SetKeeping(false);
+				Child.Destroy();
+				Child = null;
+				
+			}
+			if (Tracer)
+				Scale.Y = Dist;
+		}
+		
+		if (Child)
+			Child.StraightenBeams();
+		else if (First)
+			First.MoveBeams();
+	}
+	
+	void MoveBeams()
+	{
+		// Reduce the effect for the first and second beams.
+		if (BeamCount < 1)
+		{
+			Percent = .33;
+			if (Child)	Child.Percent = .66;
+		}
+		else if (!Child) // Last beam.
+		{
+			if (Parent)
+			{
+				if (Parent.Percent >= 1.0)
+				{
+					Parent.Percent = .66;
+					Percent = .33;
+				}
+				else Percent = .5;
+			}
+			
+		}
+		else Percent = 1.0; // In the middle.
+		
+		if (Parent)	
+		{
+			SineTheta = Parent.SineTheta;
+		}
+		Vector3 SineOffSpeed = (
+				SineOffset.X * SineSpeed.X,
+				SineOffset.Y * SineSpeed.Y,
+				SineOffset.Z * SineSpeed.Z);
+				
+		AddModVec(SineTheta, SineOffSpeed, 360);
+
+		Vector3 Sines = (
+			(Sin(SineTheta.X) * SineDist.X) * Percent, 
+			(Sin(SineTheta.Y) * SineDist.Y) * Percent, 
+			(Sin(SineTheta.Z) * SineDist.Z) * Percent);
+		
+		ClearInterpolation();
+		Vector3 xx, yy, zz;
+		[xx, yy, zz] = MC_CoordUtil.GetAxes(pitch - 90, angle, roll);
+		Vector3 origin = pos + Sines.X * xx + Sines.Y * yy + Sines.Z * zz;
+		SetOrigin(origin, true);
+		Prev = HoldPos;
+		
+		if (Child)
+			Child.MoveBeams();
+		else if (First)
+			First.AimBeams();
+	}
+	
+	private void AimBeams()
+	{
+		// Movement complete.
+		// Now do the turning.
+		Pitch -= 90.0;
+		
+		// Aim at the targeted actor and grab the APR.
+		Actor who = Child;
+		double of = 0.0;
+		if (!Child)
+		{
+			if (Tracer)
+			{
+				who = Tracer;
+				of = 0.5;
+			}
+			else return;
+		}
+		if (who)
+			A_Face(who, 0, 0, 0, 0, FAF_BOTTOM, of);
+			
+		
+		Vector3 NA = (Angle, Pitch + 90, Roll);
+		
+		// Now reset it to the old one so interpolation can be done.
+		Angle = HoldAPR.X;
+		Pitch = HoldAPR.Y;
+		Roll = HoldAPR.Z;
+		
+		Pitch += 90.0;
+		int f = 0;//SPF_INTERPOLATE;
+		SetAPR(NA, f);
+		
+		if (Child)	
+			Child.AimBeams();
+		else
+			Scale.Y = level.Vec3Diff(Tracer.Pos + (0,0,Tracer.Height * 0.5), pos).Length();
+			
+		bNOTIMEFREEZE = !TimeFreeze;
+	}
+	
+	//--------------------------------------------------------------------------
+	// Helper functions
+	//--------------------------------------------------------------------------
+	void SetAPR(Vector3 APR, int flags = 0)
+	{
+		A_SetAngle(APR.X, flags);
+		A_SetPitch(APR.Y, flags);
+		A_SetRoll(APR.Z, flags);
+	}
+	
+	protected void DoBeam()
+	{
+		// Only the starting beam is allowed to call the first StraightenBeams.
+		if (!Parent)	
+		{
+			if (!Target || !Tracer)
+			{
+				SetKeeping(false);
+				Destroy();
+				return;
+			}
+			
+			StraightenBeams();
+			
+			if (WaitTics > 0 && --WaitTics < 1)
+				WaitTics = random[Beam](TicsMin, TicsMax);
+		}
+		else A_SetTics(-1);
+	}
+	
+	void SetTheta(Vector3 th)
+	{
+		SineTheta = (0,0,0);
+		AddModVec(SineTheta, th, 360);
+	}
+	
+	private void AddModDbl(out double v, double val, double mod)
+	{
+		if (mod <= 0.0)
+		{
+			ThrowAbortException("AddModDbl: Mod must be > 0");
+			return;
+		}
+		v = (v + val) % mod;
+		if (v < 0)
+			while (v < 0) { v += mod;	}
+	}
+	
+	private void AddModVec(out Vector3 v, Vector3 val, double mod)
+	{
+		if (mod <= 0.0)
+		{
+			ThrowAbortException("AddModDbl: Mod must be > 0");
+			return;
+		}
+		
+		v.x = (v.x + val.x) % mod;
+		v.y = (v.y + val.y) % mod;
+		v.z = (v.z + val.z) % mod;
+		
+		if (v.x < 0 || v.y < 0 || v.z < 0)
+		{
+			while (v.x < 0 || v.y < 0 || v.z < 0)
+			{
+				v += (mod, mod, mod);
+				/*
+				v.x += mod;
+				v.y += mod;
+				v.z += mod;
+				*/
+			}
+			v.x %= mod;
+			v.y %= mod;
+			v.z %= mod;
+		}
+	}
+	
+	States
+	{
+	// Without someone using these, modeldefs will throw a fit and refuse to start.
+	Precache:
+		LTBM A 0;
+		X202 BYZ 0;
+		X206 FGHIJKLM 0;
+	Spawn:
+		---- A 0;
+		---- A 1 DoBeam();
+		Wait;
+	Death:
+		---- A 1;
+		Stop;
+	}
+}

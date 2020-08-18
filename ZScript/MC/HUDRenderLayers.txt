@@ -1,0 +1,211 @@
+//==============================================================================
+// HUD Render layers
+//
+// Developed by Major Cooke
+// Additional code by Marisa Kirisame
+// 
+// The primary intention of this is to draw powerup overlays.
+//==============================================================================
+enum ELayerType
+{
+	EL_UNDER = 0,
+	EL_OVER
+};
+extend class MCHandler
+{
+	private MCRenderLayerManager LayerMgr;
+	
+	private ui void RenderLayers(RenderEvent e, int type)
+	{
+		if (LayerMgr)	LayerMgr.RenderLayers(e, type);
+	}
+	
+	private void TickLayers()
+	{
+		if (LayerMgr)	LayerMgr.TickLayers();
+	}
+}
+
+Class MCRenderLayerManager play
+{
+	MCRenderLayer FirstLayer[2];
+	
+	private ui void RenderLayers(RenderEvent e, int type)
+	{
+		MCRenderLayer Current = FirstLayer[type];
+		while (Current != null)
+		{
+			Current.Render(e);
+			Current = Current.Next;
+		}
+	}
+	
+	private void TickLayers()
+	{
+		for (int i = 0; i < FirstLayer.Size(); i++)
+		{
+			if (FirstLayer[i])	
+				FirstLayer[i].Tick();
+		}
+	}
+}
+
+//------------------------------------------------------------------------------
+// MCRenderLayer
+Class MCRenderLayer play
+{
+	MCRenderLayerManager Mgr;
+	MCRenderLayer Next, Prev;
+	
+	int 	Type;
+	
+	bool	Active,
+			AlwaysDraw;	// Draw even if the player's camera isn't in their body (excluding morphs).
+	
+	double	RollAdd,	// How much roll to add per tic
+			Roll,		// Current roll
+			Alpha,
+			Scalar;
+			
+	Vector2	Pos, Scale; // Position & Scale Offsets
+	
+	private String				TexName;
+	private TextureID			Tex;
+	private Shape2D 			flat;
+	private Shape2DTransform	trans;
+	private Vector2				siz;
+	
+	PlayerInfo Plr;
+	Actor Player;
+	Powerup Item;
+	
+	//==========================================================================
+	// Getters & Setters
+	//==========================================================================
+	
+	// Active refers to if it should draw or not.
+	void SetActive(bool on)	{ active = on;	}
+	void ToggleActive { active = !active; }
+	
+	//--------------------------------------------------------------------------
+	// SetTexture(string texname, bool doinit)
+	// 
+	// Sets the texture name for drawing, but only if valid. This shouldn't be
+	// used to attempt to shut off the texture drawing. Use SetActive for that.
+	// 'doinit' should remain true 99.9% of the time. This ensures the drawer
+	// refreshes the bounding boxes
+	//--------------------------------------------------------------------------
+	bool SetTexture(string texname, bool doinit = true)
+	{
+		TextureID tex = TexMan.CheckForTexture(texname,TexMan.Type_Any);
+		if (tex)
+		{
+			self.texname = texname;
+			self.tex = tex;
+			if (doinit)	Init();
+			return true;
+		}
+		return false;
+	}
+	
+	//--------------------------------------------------------------------------
+	// GetTexture()
+	// 
+	// Returns the texname and current TextureID data.
+	//--------------------------------------------------------------------------
+	String, TextureID GetTexture() { return texname, tex; }
+	
+	//--------------------------------------------------------------------------
+	// Sets up the coordinates for drawing the images and the triangles.
+	void Init()
+	{
+		flat = new("Shape2D");
+		
+		// simple coords
+		flat.PushCoord((0,0));	// 0
+		flat.PushCoord((1,0));	// 1
+		flat.PushCoord((0,1));	// 2
+		flat.PushCoord((1,1));	// 3
+		
+		// PushTriangle takes INDEXES of coords pushed to it in order from
+		// first to last, as numbered above.
+		flat.PushTriangle(0,2,1); // (0,0) (0,1) (1,0)
+		flat.PushTriangle(2,3,1); // (0,1) (1,1) (1,0)
+		siz = (Screen.GetWidth(), Screen.GetHeight());
+		
+		// Create the vertices and push them into the array.
+		Vector2 vertices[4];
+		vertices[0] = (-siz.x,-siz.y);
+		vertices[1] = ( siz.x,-siz.y);
+		vertices[2] = (-siz.x, siz.y);
+		vertices[3] = ( siz.x, siz.y);
+		
+		flat.Clear(Shape2D.C_Verts);
+		for ( int i=0; i<4; i++ ) 
+			flat.PushVertex(vertices[i]);
+		
+		trans = new('Shape2DTransform');
+		active = true;
+	}
+	
+	//--------------------------------------------------------------------------
+	// Performs the rendering.
+	//--------------------------------------------------------------------------
+	ui void Render(RenderEvent e)
+	{	
+		if (bDESTROYED || !Active || !Player || !Item || 
+			Alpha <= 0.0 || Scale.X == 0.0 || Scale.Y == 0.0)
+			return;
+		
+		// Reset the transformation.
+		trans.Clear();
+		
+		Vector2 TempScale = scale;
+		trans.Scale(TempScale);
+		trans.Rotate(Roll);
+		trans.Translate(Pos);
+		
+		flat.SetTransform(trans);
+		
+		// draw the shape
+		Screen.DrawShape(tex, animate, flat, 
+			DTA_Alpha, Clamp(alpha, 0.0, 1.0));
+	}
+	
+	void Tick(Vector2 ScreenSize)
+	{
+		if (bDESTROYED)	return;
+		if (!Player || !Item || !Item.Owner)
+		{
+			Destroy();
+		}
+		else
+		{
+			if (!(ScreenSize ~== siz))
+				Init();
+		}
+		if (Next)	Next.Tick();
+	}
+	
+	// Remove this layer from the link. This should only be called when needed
+	// for destruction.
+	private bool Disconnected;
+	private void Disconnect()
+	{
+		if (Disconnected)	return;
+		Disconnected = true;
+		if (Mgr)
+		{
+			if (Mgr.FirstLayer[Type] == self)
+				Mgr.FirstLayer[Type] = Next;
+			else if (Prev && Next)
+				Prev.Next = Next;
+		}
+	}
+	
+	override void OnDestroy()
+	{
+		Disconnect();
+		Super.OnDestroy();
+	}
+}

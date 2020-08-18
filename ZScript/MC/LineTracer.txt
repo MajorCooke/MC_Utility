@@ -1,0 +1,70 @@
+// Various LineTracer classes scattered throughout the MC folder, centralized here
+// for organization purposes.
+
+// Tracer for GetDamageDistance.
+Class GDDTracer : LineTracer
+{
+	Actor trg;
+	
+	override ETraceStatus TraceCallback() 
+	{
+		switch (Results.HitType) 
+		{
+			case TRACE_HitActor:
+			{
+				let mo = Results.HitActor;
+				return (!mo || mo != trg) ? TRACE_Skip : TRACE_Stop;
+			}
+
+			case TRACE_HitFloor:
+			case TRACE_HitCeiling:
+			case TRACE_HitWall:
+				return TRACE_Skip;
+			case TRACE_HitNone:
+				return TRACE_Stop;
+		}
+		return TRACE_Skip;
+	}
+}
+
+// Used for flowing sine beams to make sure it hits something.
+Class MCBeamFlowTracer : LineTracer
+{
+	Actor trg;
+	
+	override ETraceStatus TraceCallback() 
+	{
+		switch (Results.HitType) 
+		{
+			case TRACE_HitActor:
+			{
+				let mo = Results.HitActor;
+				
+				return (!mo || mo != trg) ? TRACE_Skip : TRACE_Stop;
+			}
+
+			case TRACE_HitFloor:
+			case TRACE_HitCeiling:
+			case TRACE_HitNone:
+				return TRACE_Stop;
+			
+
+			case TRACE_HitWall:
+			{
+				if (Results.Tier == TIER_Upper || Results.Tier == TIER_Lower) 
+					return TRACE_Stop;
+
+				let hl = Results.HitLine;
+				int hf = hl.flags;
+				
+				if (hf & (Line.ML_BLOCKING | Line.ML_BLOCKEVERYTHING | Line.ML_BLOCKHITSCAN))
+					return TRACE_Stop;
+				
+				if (Results.Tier == TIER_Middle && (hf & Line.ML_BLOCKING) && (hf & Line.ML_TWOSIDED))
+					return TRACE_Skip;
+				
+			}
+		}
+		return TRACE_Skip;
+	}
+}

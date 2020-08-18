@@ -38,3 +38,8 @@ enum ECustomDmgFlags
 {
 	DMG_INFO = 1 << 30
 };
+
+enum ECustomExploFlags
+{
+	RADF_ALWAYSTHRUST = 1 << 30
+};

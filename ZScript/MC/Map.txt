@@ -1,0 +1,314 @@
+Class MC_Map play
+{
+	static double SnapDouble(double v, double gridsize)
+	{
+		v = round(v / gridsize) * gridsize;
+		return v;
+	}
+	static Vector2 SnapVector2(Vector2 v, Vector2 gridsize)
+	{
+		v.x = round(v.x / gridsize.x) * gridsize.x;
+		v.y = round(v.y / gridsize.y) * gridsize.y;
+		return v;
+	}
+	
+	static Vector2 SnapVector2Uniform(Vector2 v, double gridsize)
+	{
+		v.x = round(v.x / gridsize) * gridsize;
+		v.y = round(v.y / gridsize) * gridsize;
+		return v;
+	}
+	
+	static Vector3 SnapVector3(Vector3 v, Vector3 gridsize)
+	{
+		v.x = round(v.x / gridsize.x) * gridsize.x;
+		v.y = round(v.y / gridsize.y) * gridsize.y;
+		v.z = round(v.z / gridsize.z) * gridsize.z;
+		return v;
+	}
+	
+	static Vector3 SnapVector3Uniform(Vector3 v, double gridsize)
+	{
+		v.x = round(v.x / gridsize) * gridsize;
+		v.y = round(v.y / gridsize) * gridsize;
+		v.z = round(v.z / gridsize) * gridsize;
+		return v;
+	}
+
+	// Code by PhantomBeta.
+	static Vector2, Vector2 SectorBounds (Sector sec, int mask = 0) 
+	{
+		Vector2 posMin = ( double.Infinity,  double.Infinity);
+		Vector2 posMax = (-double.Infinity, -double.Infinity);
+
+		for (int i = 0; i < sec.lines.Size (); i++) 
+		{
+			Line l = sec.Lines [i];
+			
+			if (mask != 0 && !(l.flags & mask))
+				continue;
+			
+			posMin = (
+				min (posMin.X, l.v1.p.X, l.v2.p.X),
+				min (posMin.Y, l.v1.p.Y, l.v2.p.Y));
+			posMax = (
+				max (posMax.X, l.v1.p.X, l.v2.p.X),
+				max (posMax.Y, l.v1.p.Y, l.v2.p.Y));
+		}
+		return posMin, posMax;
+	}
+	
+	//==========================================================================
+	// A test function to count the number of lines.
+	//==========================================================================
+	static int, int CountIntersectingLines(Actor mo, double radius = -1.0)
+	{
+		if (!mo || (mo.radius <= 0 && radius <= 0.0))	return -1, -1;
+		
+		if (radius <= 0.0)
+			radius = mo.radius;
+	
+		// Find the line that this actor's centerpoint is closest to
+		double radius = mo.radius;
+		Vector3 pos = mo.pos;
+		
+		double	xp = pos.x + radius,
+				xn = pos.x - radius,
+				yp = pos.y + radius,
+				yn = pos.y - radius;
+		
+		
+		int count[2]; count[0] = 0;	count[1] = 0;
+		BlockLinesIterator it = BlockLinesIterator.Create(mo,radius);
+		while (it.Next())
+		{
+			Line current = it.curline;
+			
+			count[0]++;
+			
+			// Discard lines that definitely don't intersect the actor's radius
+			if ((current.v1.p.x > xp && current.v2.p.x > xp) ||
+				(current.v1.p.x < xn && current.v2.p.x < xn) ||
+				(current.v1.p.y > yp && current.v2.p.y > yp) ||
+				(current.v1.p.y < yn && current.v2.p.y < yn))
+				continue; 
+			
+			count[1]++;
+		}
+		return count[0], count[1];
+	}
+	
+	static MC_LineContainer GetIntersectingLines(Actor mo, Vector2 RH = (-1, -1), 
+		bool usepos = false, Vector3 pos = (0,0,0), int mask = 0)
+	{
+		if (!mo && !usepos)	return null;
+		if (RH.X <= 0.0)	
+		{
+			if (usepos)	return null;
+			RH.X = mo.radius;
+			if (RH.X <= 0.0)	return null;
+		}
+		
+		if (mo && RH.Y <= 0.0)
+			RH.Y = mo.height;
+	
+		// Find the line that this actor's centerpoint is closest to.
+		if (!usepos)
+			pos = mo.pos;
+		
+		double	dist = RH.X,
+				xp = pos.x + RH.X,
+				xn = pos.x - RH.X,
+				yp = pos.y + RH.X,
+				yn = pos.y - RH.X;
+		
+		let Container = MC_LineContainer.Create(mo, RH);
+		
+		BlockLinesIterator it;
+		if (usepos)	it = BlockLinesIterator.Create(mo, RH.X);
+		else		it = BlockLinesIterator.CreateFromPos((pos.x, pos.y, pos.z), RH.Y, RH.X);
+			
+		while (it.Next())
+		{
+			Line current = it.curline;
+			
+			if (mask != 0 && !(current.flags & mask))
+				continue;
+			
+			// Discard lines that definitely don't intersect the actor's radius
+			if ((current.v1.p.x > xp && current.v2.p.x > xp) ||
+				(current.v1.p.x < xn && current.v2.p.x < xn) ||
+				(current.v1.p.y > yp && current.v2.p.y > yp) ||
+				(current.v1.p.y < yn && current.v2.p.y < yn))
+				continue; 
+			
+			Container.AddLine(current);
+		}
+		
+		return Container;
+	/*
+		// Find the line that is closest based on proximity to end vertices
+		double curdist = (current.v1.p - pos.xy + current.v2.p - pos.xy).Length();
+		if (linedef == null || curdist < dist)
+		{
+			linedef = current;
+			dist = curdist;
+		}
+	*/
+	}
+	
+	static MC_SectorContainer GetIntersectingSectors(Actor mo, Vector2 RH = (-1, -1), 
+		MC_LineContainer LC = null, bool usepos = false, Vector3 pos = (0,0,0))
+	{
+		if (!LC)
+		{
+			LC = MC_Map.GetIntersectingLines(mo, RH, true, pos);
+			if (!LC)	return null;
+		}
+		
+		let SC = MC_SectorContainer.Create(mo, RH);
+		if (SC)
+		{
+			for (int i = 0; i < LC.Size(); i++)
+			{
+				Line l = LC.Lines[i].lin;
+				if (!l)	continue;
+				
+				SC.AddSector(l.frontsector);
+				SC.AddSector(l.backsector);
+			}
+		}
+		
+		if (SC.Size() < 1)	
+			SC = null;
+		return SC;
+	}
+}
+
+Class MC_Line play
+{
+	Line lin;
+	
+	static MC_Line Create(Line l)
+	{
+		if (!l)	return null;
+		let ls = new('MC_Line');
+		ls.lin = l;
+		return ls;
+	}
+}
+
+Class MC_LineContainer play
+{
+	Array<MC_Line> Lines;
+	Actor mo;
+	Vector2 RH;
+	static MC_LineContainer Create(Actor mo = null, Vector2 RH = (-1,-1))
+	{
+		let ls = new('MC_LineContainer');
+		ls.Lines.Clear();
+		ls.mo = mo;
+		ls.RH = RH;
+		return ls;
+	}
+	
+	int Size()	{	return Lines.Size();	}
+	
+	void AddLine(Line lin)
+	{
+		if (!lin)	return;
+		
+		let linepart = MC_Line.Create(lin);
+		if (linepart)
+			Lines.Push(linepart);
+	}
+}
+
+Class MC_Sector play
+{
+	Sector sec;
+	
+	static MC_Sector Create(Sector s)
+	{
+		if (!s)	return null;
+		let ls = new('MC_Sector');
+		ls.sec = s;
+		return ls;
+	}
+}
+
+Class MC_SectorContainer play
+{
+	Array<MC_Sector> Sectors;
+	Actor mo;
+	Vector2 RH;
+	int index;
+	static MC_SectorContainer Create(Actor mo = null, Vector2 RH = (-1,-1))
+	{
+		let ls = new('MC_SectorContainer');
+		ls.Sectors.Clear();
+		ls.mo = mo;
+		ls.RH = RH;
+		return ls;
+	}
+	
+	int Size()	{	return Sectors.Size();	}
+	
+	void AddSector(Sector sect)
+	{
+		if (!sect)	return;
+		
+		for (int i = 0; i < Size(); i++)
+		{
+			if (Sectors[i] && Sectors[i].sec == sect)
+				return;
+		}
+		
+		let secpart = MC_Sector.Create(sect);
+		if (secpart)
+			Sectors.Push(secpart);
+	}
+}
+
+Class MC_SecPlane play
+{
+	SecPlane sec;
+	
+	static MC_SecPlane Create(SecPlane s)
+	{
+		if (!s)	return null;
+	
+		let ls = new('MC_SecPlane');
+		ls.sec = s;
+		return ls;
+	}
+}
+
+Class MC_SecPlaneContainer play
+{
+	Array<MC_SecPlane> SecPlanes;
+	
+	static MC_SecPlaneContainer Create()
+	{
+		let ls = new('MC_SecPlaneContainer');
+		ls.SecPlanes.Clear();
+		return ls;
+	}
+	
+	int Size()	{	return SecPlanes.Size();	}
+	
+	void AddSecPlane(SecPlane secp)
+	{
+		if (!secp)	return;
+		
+		for (int i = 0; i < Size(); i++)
+		{
+			if (SecPlanes[i] && SecPlanes[i].sec == secp)
+				return;
+		}
+		
+		let secpart = MC_SecPlane.Create(secp);
+		if (secpart)
+			SecPlanes.Push(secpart);
+	}
+}

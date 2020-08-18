@@ -286,10 +286,14 @@ extend class S7_Math {
     }
 }
 
-class S7_Polygon {
+class S7_Polygon 
+{
     Array<S7_Line> lines;
+	
+	
 }
 
-class S7_Line {
+class S7_Line 
+{
     Vector2 v1, v2;
 }

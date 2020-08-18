@@ -1,10 +1,13 @@
 #include "ZScript/MC/WeaponSwitch.txt"
 #include "ZScript/MC/Constants.txt"
 #include "ZScript/MC/ActorDisplay.txt"
+//#include "ZScript/MC/HUDRenderLayers.txt"
 #include "ZScript/MC/Relations.txt"
 #include "ZScript/MC/Morph.txt"
 #include "ZScript/MC/Beam.txt"
 #include "ZScript/MC/Actor.txt"
+#include "ZScript/MC/LineTracer.txt"
+#include "ZScript/MC/Map.txt"
 
 // A simple set or wrappers for making ACS-style HUD messages.
 // Calling these is as simple as:
@@ -28,9 +31,9 @@ Class MCMsg play
 // data when it can just be done once.
 //
 // Static event handlers should be avoided otherwise. Eventually, the main
-// weapon switching itself will be moved to MCHandler so changes this won't be
-// compromised by saved games. As in, the changes will kick in at the end of a
-// map instead of needing to start a new game.
+// weapon switching itself will be moved to MCHandler so changes to this won't
+// be compromised by saved games. As in, the changes will kick in at the end of 
+// a map instead of needing to start a new game.
 //==============================================================================
 Class MCHandlerStatic : StaticEventHandler
 {
@@ -111,12 +114,13 @@ Class MCHandler : EventHandler
 	const Second = 35;
 	const TimeTrigger = Second * 5;
 
-	AArray Monsters, DeadMonsters, Missiles, Tracker, Items;
+	AArray Monsters, DeadMonsters, Missiles, Tracker, Items, Shootables;
 	private int Timer;
 	private Array<QueuedWeapon> Queue;
 	private MCWeaponList WeaponList;
 	private MCHandlerStatic SEvent;
 	private bool InGame;
+//	private MCRenderLayerManager LayerMgr;
 	
 	//--------------------------------------------------------------------------
 	// Custom functions
@@ -152,9 +156,15 @@ Class MCHandler : EventHandler
 		SetupProjectionStuff();
 		Super.OnRegister();
 	}
-	
+	/*
+	override void RenderOverlay(RenderEvent e)
+	{
+		RenderLayers(e, EL_OVER);
+	}
+	*/
 	override void RenderUnderlay(RenderEvent e)
 	{
+		//RenderLayers(e, EL_UNDER);
 		ProcessHudElements(e);
 	}
 
@@ -166,7 +176,8 @@ Class MCHandler : EventHandler
 	override void WorldTick()
 	{
 		TickWeaponTags();
-	
+	//	TickLayers();
+		
 		// Clear the lists every TimeTrigger seconds of null pointers.
 		Timer++;
 		if (Timer >= TimeTrigger)
@@ -176,7 +187,7 @@ Class MCHandler : EventHandler
 			for (int i = 0; i < size; i++)
 			{
 				Actor mo = Monsters.Actors[i];
-				if (mo && mo.health < 1)
+				if (mo && mo.bKILLED)
 				{
 					if (DeadMonsters.Find(mo) >= DeadMonsters.Size())
 						DeadMonsters.Push(mo);
@@ -187,7 +198,7 @@ Class MCHandler : EventHandler
 			for (int i = 0; i < size; i++)
 			{
 				Actor mo = DeadMonsters.Actors[i];
-				if (mo && mo.health > 0)
+				if (mo && !mo.bKILLED)
 				{
 					Monsters.Push(mo);
 					DeadMonsters.Actors[i] = null;
@@ -196,25 +207,25 @@ Class MCHandler : EventHandler
 			
 			Monsters.Clean();
 			DeadMonsters.Clean();
+			Shootables.Clean();
 			Missiles.Clean();
 			Tracker.Clean();
 			Items.Clean();
-			CleanShapes(); //Automatically ticks all valid shapes.
+			CleanShapes();	// Ticks the shapes within.
 		}
-		else
-		{
-			TickShapes();
-		}
+		else TickShapes();
 	}
 	
 	override void WorldLoaded(WorldEvent e)
 	{
 		Monsters = AArray.Create();
 		DeadMonsters = AArray.Create();
+		Shootables = AArray.Create();
 		Missiles = AArray.Create();
 		Tracker = AArray.Create();
 		Items = AArray.Create();
 		Queue.Clear();
+	//	if (!LayerMgr)	LayerMgr = new('MCRenderLayerManager');
 		UpdateWeaponList();
 	}
 	
@@ -224,7 +235,11 @@ Class MCHandler : EventHandler
 		let plr = players[num].mo;
 		if (!plr)	return;
 		
-		if (e.Name == 'ClearMonsters')
+		if (e.Name == 'CountShapes')
+		{
+			Console.Printf("%d shape(s) active", CountShapes());
+		}
+		else if (e.Name == 'ClearMonsters')
 		{
 			int size = Monsters.Size();
 			if (!Monsters || size < 1)	return;
@@ -233,7 +248,7 @@ Class MCHandler : EventHandler
 			for (int i = 0; i < size; i++)
 			{
 				Actor mo = Monsters.Actors[i];
-				if (mo && mo.bISMONSTER && mo.health > 0)
+				if (mo && mo.bISMONSTER && !mo.bKILLED)
 				{
 					count++;
 					mo.ClearCounters();
@@ -241,46 +256,45 @@ Class MCHandler : EventHandler
 				}
 			}
 			Console.Printf("%d monsters destroyed.", count);
-			return;
 		}
-		if (plr.health < 1)	return;
-		
-		if (e.Name == 'PullItems')
+		else if (plr.health > 0)
 		{
-			let it = ThinkerIterator.Create("Inventory");
-			Inventory mo = null;
-			while (mo = Inventory(it.Next()))
+			if (e.Name == 'PullItems')
 			{
-				if (!mo || mo.owner || mo.special || mo is 'DoomKey' || !mo.bDROPPED)
-					continue;
-					
-				mo.Warp(plr, (plr.radius + mo.radius) * 2,0,0,random(0,359),WARPF_NOCHECKPOSITION);
-			}
-		}
-		
-		if (e.Name == 'DontThrust')
-		{
-			plr.bDONTTHRUST = !(plr.bDONTTHRUST);
-			
-			if (plr.bDONTTHRUST)	Console.Printf("DontThrust ON");
-			else					Console.Printf("DontThrust OFF");
-			return;
-		}
-		
-		
-		
-		Array<String> strings;
-		e.Name.Split (strings, ":");
-		
-		if (strings.Size() > 1)
-		{
-			if (strings[0] == 'MC_SelectWeapon')
-			{
-				Weapon next = ChangeWeapons(e);
-				if (next) 
+				let it = ThinkerIterator.Create("Inventory");
+				Inventory mo = null;
+				while (mo = Inventory(it.Next()))
 				{
-					QueuedWeapon tosend = QueuedWeapon.Create(next);
-					QueueWeaponTag(tosend);
+					if (!mo || mo.owner || mo.special || mo is 'DoomKey' || !mo.bDROPPED)
+						continue;
+						
+					mo.Warp(plr, (plr.radius + mo.radius) * 2,0,0,random(0,359),WARPF_NOCHECKPOSITION);
+				}
+			}
+			
+			else if (e.Name == 'DontThrust')
+			{
+				plr.bDONTTHRUST = !(plr.bDONTTHRUST);
+				
+				if (plr.bDONTTHRUST)	Console.Printf("DontThrust ON");
+				else					Console.Printf("DontThrust OFF");
+			}			
+			else
+			{
+				Array<String> strings;
+				e.Name.Split (strings, ":");
+				
+				if (strings.Size() > 1)
+				{
+					if (strings[0] == 'MC_SelectWeapon')
+					{
+						Weapon next = ChangeWeapons(e);
+						if (next && next != WP_NOCHANGE) 
+						{
+							QueuedWeapon tosend = QueuedWeapon.Create(next);
+							QueueWeaponTag(tosend);
+						}
+					}
 				}
 			}
 		}
@@ -335,6 +349,7 @@ Class MCHandler : EventHandler
 	//--------------------------------------------------------------------------
 	override void WorldThingDied(WorldEvent e)
 	{
+		if (bDESTROYED)	return;
 		Actor mo = e.Thing;
 		
 		if (IsPlayerPawn(mo))
@@ -366,6 +381,7 @@ Class MCHandler : EventHandler
 	// See WeaponSwitch.txt
 	override bool InputProcess(InputEvent ev)
 	{
+		if (bDESTROYED)	return false;
 		return CheckInputWeaponChange(ev);
 	}
 }

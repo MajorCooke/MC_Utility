@@ -51,6 +51,21 @@ Class MC_QuatTurner
 		[angle.x, pitch.x, roll.x] = result.ToEulerAngle();
 		return angle.x, pitch.x, roll.x;
 	}
+	
+	Vector3 GetTurn2(Vector3 Angles, Vector3 NewAng)
+	{
+		[Angles.X, Angles.Y, Angles.Z] = GetTurnDouble2(Angles, NewAng);
+		return Angles;
+	}
+	
+	double, double, double GetTurnDouble2(Vector3 orient, Vector3 inp)
+	{
+		orientation.FromEulerAngle(orient.x, orient.y, orient.z);
+		input.FromEulerAngle(inp.x, inp.y, inp.z);
+		MC6DOF_Quaternion.Multiply(result, orientation, input);
+		[inp.x, inp.y, inp.z] = result.ToEulerAngle();
+		return inp.x, inp.y, inp.z;
+	}
 }
 
 struct MC6DOF_Quaternion

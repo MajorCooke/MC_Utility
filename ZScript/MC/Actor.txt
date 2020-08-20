@@ -1,74 +1,107 @@
 Class MC_Functions play
 {
-	static double GetDamageFalloff(Actor bomb, Actor victim, double radius, double full, 
-		bool _2d)
-	{
-		if (!bomb || !victim || radius <= 0)	
-		{
-		//	Console.Printf("-1");
-			return 0;
-		}
-		if (bomb == victim || full >= radius) 
-		{
-		//	Console.Printf("-4");
-			return 1;
-		}
+	/*--------------------------------------------------------------------------
+	GetDamageFalloff
+	
+	Does a trace to the victim from the bomb, and calculates the damage falloff.
+	Used by Explode for proper thrusting implementation.
+	
+	-- Arguments --
+	*bomb
+		Trace starts here. Placed at the feet, or middle if centerz is true.
 		
+	*victim
+		Trace ends at the bounding box of this actor.
+		
+	*radius
+		Spherical radius, used primarily falloff calculation.
+		
+	*full
+		Distance in which there is no falloff.
+		
+	*_2d
+		Ignores z height differences, like OLDRADIUSDMG.
+		
+	*centerz
+		If true, the trace comes from the bomb's middle instead of the base.
+		
+	--------------------------------------------------------------------------*/
+	static double GetDamageFalloff(Actor bomb, Actor victim, double radius, double full, 
+		bool _2d, bool centerz = false)
+	{
+		// No point running this when without something to trace towards.
+		if (!bomb || !victim || radius <= 0)		return 0;
+		
+		// Full force in this case.
+		if (bomb == victim || full >= radius) 		return 1;
+		
+		// Aim from the base of the bomb to the victim's middle.
 		Vector3 bpos = bomb.pos,
 				vpos = victim.pos + (0,0,victim.height * 0.5);
-				
+		
+		// GZDoom's OLDRADIUSDMG basically.
 		if (_2d)	vpos.z = bpos.z;
+		else if (centerz) bpos.z += bomb.height * 0.5;
 		
 		Vector3 APR = level.Vec3Diff(bpos, vpos);
 		
 		let trc = new('GDDTracer');
 		trc.trg = victim;
-		trc.Trace(bpos, bomb.cursector, APR, radius * 2, 0);
+		trc.Trace(bpos, bomb.cursector, APR, radius * 2, 0); // *2: Just to make sure it hits.
 		
 		if (trc.Results.HitType == TRACE_HitActor)
 		{
 			double dist = level.Vec3Diff(trc.Results.HitPos, bpos).Length();//trc.Results.Distance;
-			if (dist > radius)	
-			{
-			//	Console.Printf("-2");
-				return 0.0;
-			}
-			else if (dist <= full)	
-			{
-			//	Console.Printf("-3: %d - %d", dist, full);
-				return 1.0;
-			}
+			if (dist > radius)		return 0.0;
+			else if (dist <= full)	return 1.0;
 			else
 			{
 				double size = radius - full;
 				double ret = (1.0 - ((dist - full) / size));
-			//	Console.Printf("%.01f: (%.01f - %.01f) / %.01f", ret, dist, full, size);
 				return ret;
 			}
 		}
-	//	else	Console.Printf("Victim not hit!");
 		return 0.0;
 	}
 
-	//--------------------------------------------------------------------------
-	// Replicates a more realistic form of thrusting with explosions. No nails
-	// though... Also doesn't support DontHurtShooter or deprecated stuff.
-	//
-	// Arguments
-	// *bomb - The actor dealing the damage
-	// *source - The actor responsible for bomb
-	// *damage - Damage to deal. Uses ExplosionDamage if < 1.
-	// *radius - Radius of explosion. Uses ExplosionRadius if < 1
-	// *full - Inner radius ring to deal maximum damage.
-	// *thrust - How much force to apply based on A_RadiusThrust.
-	// *flags - A_Explode flags.
-	// *alert - Wake up monsters nearby?
-	// *DamageType - The damage type of the bomb. If none, use bomb's unless
-	//		XF_EXPLICITDAMAGETYPE is in flags.
-	// *radflags - A_RadiusThrust flags. Only some supported.
-	// 
-	// Returns # of actors damaged.
-	//--------------------------------------------------------------------------
+	/*--------------------------------------------------------------------------
+	Explode
+	
+	Replicates a more realistic form of thrusting with explosions. No nails
+	though. Also doesn't support DontHurtShooter or deprecated stuff.
+	
+	-- Arguments --
+	*bomb - The actor dealing the damage
+	
+	*source - The actor responsible for bomb. Replaces XF_NOTMISSILE.
+	
+	*damage - Damage to deal. Uses ExplosionDamage if < 1 (default).
+	
+	*radius - Radius of explosion. Uses ExplosionRadius if < 1 (default).
+	
+	*full - Inner radius ring to deal maximum damage.
+	
+	*thrust - How much force to apply based on A_RadiusThrust. Default is -1,
+		which translates to damage * 30 (since otherwise the thrust would be 
+		microscopic).
+	
+	*flags - A_Explode flags. XF_NOTMISSILE is ignored. Use source instead.
+	
+	*radflags - A_RadiusThrust flags. Only some supported.
+		RADF_ALWAYSTHRUST - New flag, always applies thrust even if the actor
+			were to be excluded.
+		RADF_NODAMAGE - No explosion damage dealt, but thrusting will apply
+			BLASTED flag.
+		RADF_NOIMPACTDAMAGE - Prevents BLASTED flag from being applied.
+		RADF_FORCEZERORADIUSDMG
+	
+	*alert - Wake up monsters nearby?
+	
+	*DamageType - The damage type of the bomb. If none, use bomb's unless
+		XF_EXPLICITDAMAGETYPE is in flags.
+	
+	Returns # of actors damaged.
+	--------------------------------------------------------------------------*/
 	static int Explode(Actor bomb, Actor source, 
 		int damage = -1, int radius = -1, int full = 0, 
 		double thrust = -1,	int flags = XF_HURTSOURCE, int radflags = 0, 
@@ -78,16 +111,22 @@ Class MC_Functions play
 		
 		if (damage < 0)	damage = bomb.ExplosionDamage;
 		if (radius < 0)	radius = bomb.ExplosionRadius;
-		if (thrust < 0)	thrust = double(damage);
+		if (thrust < 0)	thrust = double(damage * 30.0);
 		
 		if (!(flags & XF_EXPLICITDAMAGETYPE) && DamageType == 'None')
 			DamageType = source.DamageType;
 		
-		Vector3 pos = bomb.pos;
+		// Set up the iterator stuff. Do NOT deal any damage or thrusting until
+		// after the iterator is complete. If an actor is destroyed during 
+		// iteration, the engine won't have enough time to fill in the missing
+		// data link and the iteration will end abruptly!
 		
+		Vector3 pos = bomb.pos;
 		int count = 0;
 		Array<Actor> Mon; Mon.Clear();
 		Array<Bool> NoDmg; NoDmg.Clear();
+		
+		// Code copied directly from P_RadiusAttack, ensuring accuracy.
 		let it = BlockThingsIterator.CreateFromPos(
 			pos.x, pos.y, pos.z - radius, bomb.height + radius * 2, radius, false);
 		Actor mo = null;
@@ -110,6 +149,8 @@ Class MC_Functions play
 			if (NoDamage && !(radflags & RADF_ALWAYSTHRUST))
 				continue;
 			
+			// No need for distance checks here. A trace is performed later which
+			// handles that for this function.
 			if	(!mo.CheckSight(bomb, SF_IGNOREVISIBILITY|SF_IGNOREWATERBOUNDARY))
 				continue;
 			
@@ -120,6 +161,7 @@ Class MC_Functions play
 		
 		//----------------------------------------------------------------------
 		//----------------------------------------------------------------------
+		// Now that we have all the actors, time to deal damage.
 		for (int i = 0; i < Mon.Size(); i++)
 		{
 			mo = Mon[i];
@@ -141,8 +183,9 @@ Class MC_Functions play
 			double newthrust = thrust * falloff;
 			int dmg = int(round(ddmg));
 			
-			newthrust = newthrust * (0.5 / double(mo.mass));
-		//	Console.Printf("%.1f - %.1f: %s", ddmg, newthrust, mo.GetClassName());
+			// Bear in mind the division by mass GREATLY dilutes the thrusting
+			// power, hence why if thrust < 0, it'll multiply by 30.
+			newthrust = newthrust * 0.5 / double(mo.mass);
 			
 			if (newthrust >= 0.01 && !mo.bDONTTHRUST && (!bomb.bNODAMAGETHRUST || (tflags & RADF_NODAMAGE)))
 			{
@@ -164,7 +207,7 @@ Class MC_Functions play
 			
 			if (res > 0 || bomb.bFORCEZERORADIUSDMG)
 			{
-				if (mo.DamageMobj(bomb, source, res, DamageType, DMG_THRUSTLESS|DMG_EXPLOSION))
+				if (mo.DamageMobj(bomb, source, res, DamageType, DMG_THRUSTLESS|DMG_EXPLOSION) > 0)
 					count++;
 			}
 		}

@@ -312,3 +312,25 @@ Class MC_SecPlaneContainer play
 			SecPlanes.Push(secpart);
 	}
 }
+
+Class CVector2
+{
+	Vector2 V;
+	static CVector2 Create(Vector2 a)
+	{
+		let vec = new('CVector2');
+		vec.V = a;
+		return vec;
+	}
+}
+
+Class CVector3
+{
+	Vector3 V;
+	static CVector3 Create(Vector3 a)
+	{
+		let vec = new('CVector3');
+		vec.V = a;
+		return vec;
+	}
+}

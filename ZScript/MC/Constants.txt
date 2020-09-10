@@ -41,5 +41,8 @@ enum ECustomDmgFlags
 
 enum ECustomExploFlags
 {
-	RADF_ALWAYSTHRUST = 1 << 30
+	RADF_ALWAYSTHRUST = 1 << 30,
+	
+	EXF_PARENT = 		1 << 0,
+	EXF_INVERSE =		1 << 1
 };

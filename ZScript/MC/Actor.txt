@@ -45,6 +45,10 @@ Class MC_Functions play
 		
 		Vector3 APR = level.Vec3Diff(bpos, vpos);
 		
+		// Use a trace to get the edge of the bounding box. We'll use this point
+		// to ensure they're more affected than what GZDoom's code uses, which is
+		// the center. This also turns it radial instead of using a box.
+		
 		let trc = new('GDDTracer');
 		trc.trg = victim;
 		trc.Trace(bpos, bomb.cursector, APR, radius * 2, 0); // *2: Just to make sure it hits.
@@ -71,23 +75,37 @@ Class MC_Functions play
 	though. Also doesn't support DontHurtShooter or deprecated stuff.
 	
 	-- Arguments --
-	*bomb - The actor dealing the damage
+	*bomb
+		The actor dealing the damage
 	
-	*source - The actor responsible for bomb. Replaces XF_NOTMISSILE.
+	*source 
+		he actor responsible for bomb. Replaces XF_NOTMISSILE.
 	
-	*damage - Damage to deal. Uses ExplosionDamage if < 1 (default).
+	*damage
+		Damage to deal. Uses ExplosionDamage if < 1 (default).
 	
-	*radius - Radius of explosion. Uses ExplosionRadius if < 1 (default).
+	*radius
+		Radius of explosion. Uses ExplosionRadius if < 1 (default).
 	
-	*full - Inner radius ring to deal maximum damage.
+	*full
+		Inner radius ring to deal maximum damage.
 	
-	*thrust - How much force to apply based on A_RadiusThrust. Default is -1,
+	*thrust
+		How much force to apply based on A_RadiusThrust. Default is -1,
 		which translates to damage * 30 (since otherwise the thrust would be 
 		microscopic).
+		
+	*trad
+		Radius specifically for thrust. Defaults to damage radius.
 	
-	*flags - A_Explode flags. XF_NOTMISSILE is ignored. Use source instead.
+	*tfull
+		Full thrust radius. Defaults to full damage radius.
 	
-	*radflags - A_RadiusThrust flags. Only some supported.
+	*flags
+		A_Explode flags. XF_NOTMISSILE is ignored. Use source instead.
+	
+	*radflags
+		A_RadiusThrust flags. Only some supported.
 		RADF_ALWAYSTHRUST - New flag, always applies thrust even if the actor
 			were to be excluded.
 		RADF_NODAMAGE - No explosion damage dealt, but thrusting will apply
@@ -95,23 +113,37 @@ Class MC_Functions play
 		RADF_NOIMPACTDAMAGE - Prevents BLASTED flag from being applied.
 		RADF_FORCEZERORADIUSDMG
 	
-	*alert - Wake up monsters nearby?
+	*alert
+		Wake up monsters nearby?
 	
-	*DamageType - The damage type of the bomb. If none, use bomb's unless
+	*DamageType
+		The damage type of the bomb. If none, use bomb's unless
 		XF_EXPLICITDAMAGETYPE is in flags.
+		
+	*filter
+		If not null, will exclude the filter class from receiving damage & thrust.
+		
+	*eflags
+		EXF_PARENT - If filter is a parent class, all child classes inheriting 
+			are excluded.
+		EXF_INVERSE - Filter behaves as a whitelist instead of a blacklist.
 	
 	Returns # of actors damaged.
 	--------------------------------------------------------------------------*/
 	static int Explode(Actor bomb, Actor source, 
 		int damage = -1, int radius = -1, int full = 0, 
-		double thrust = -1,	int flags = XF_HURTSOURCE, int radflags = 0, 
-		bool alert = false, Name DamageType = 'None')
+		double thrust = -1, double trad = -1, int tfull = -1,
+		int flags = XF_HURTSOURCE, int radflags = 0, 
+		bool alert = false, Name DamageType = 'None', 
+		Class<Actor> filter = null, int eflags = EXF_PARENT)
 	{
 		if (!bomb)	return 0;
 		
 		if (damage < 0)	damage = bomb.ExplosionDamage;
 		if (radius < 0)	radius = bomb.ExplosionRadius;
 		if (thrust < 0)	thrust = double(damage * 30.0);
+		if (trad < 0)	trad = radius;
+		if (tfull < 0)	tfull = full;
 		
 		if (!(flags & XF_EXPLICITDAMAGETYPE) && DamageType == 'None')
 			DamageType = source.DamageType;
@@ -135,6 +167,18 @@ Class MC_Functions play
 			mo = it.thing;
 			if (!mo || mo.health < 1 || (!mo.bSHOOTABLE && !mo.bVULNERABLE))
 				continue;
+			
+			bool parent = eflags & EXF_PARENT;
+			bool inverse = eflags & EXF_INVERSE;
+			if (filter)
+			{
+				bool fil = false;
+				
+				if (inverse)	fil = (parent && !(mo is filter)) || (!parent && mo.GetClass() != filter);
+				else			fil = (parent && mo is filter) || (!parent && mo.GetClass() == filter);
+				
+				if (!fil)		continue;
+			}
 				
 			// Filter out what classes are ineligible for damage.
 			bool NoDamage = false;
@@ -179,12 +223,13 @@ Class MC_Functions play
 			// First, calculate the damage based on distance. In this case it does
 			// a trace to find the closest point on the bounding box.
 			double falloff = MC_Functions.GetDamageFalloff(bomb, mo, double(radius), double(full), bomb.bOLDRADIUSDMG);
-			double ddmg = damage * falloff;
-			double newthrust = thrust * falloff;
-			int dmg = int(round(ddmg));
+			double tfall = MC_Functions.GetDamageFalloff(bomb, mo, double(trad), double(tfull), bomb.bOLDRADIUSDMG);
+			double newthrust = thrust * tfall;
+			int dmg = int(round(damage * falloff));
 			
 			// Bear in mind the division by mass GREATLY dilutes the thrusting
 			// power, hence why if thrust < 0, it'll multiply by 30.
+			
 			newthrust = newthrust * 0.5 / double(mo.mass);
 			
 			if (newthrust >= 0.01 && !mo.bDONTTHRUST && (!bomb.bNODAMAGETHRUST || (tflags & RADF_NODAMAGE)))
@@ -588,4 +633,9 @@ Class MC_Functions play
 			caller.A_FaceMovementDirection();
 		MC_Functions.StaticTurnAng(caller, caller.tracer, angl, heightoffset, true, flags);
 	}
+	
+	//--------------------------------------------------------------------------
+	//
+	//--------------------------------------------------------------------------
+	
 }

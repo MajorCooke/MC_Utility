@@ -1,5 +1,26 @@
 Class MC_Map play
 {
+	static Vector2 RotateVector(Vector2 s, double angle, Vector2 rPoint)
+	{
+		s -= rPoint;
+		return (s.x * cos(angle) - s.y * sin(angle),
+				s.x * sin(angle) + s.y * cos(angle)) + rPoint;
+	}
+	
+	static Vector2 RotateVectorOffset(Vector2 v, double angle)
+	{
+		double c = cos(angle),	s = sin(angle);
+		
+		return (v.x * c + v.y * s,
+				v.x * s - v.y * c);
+	}
+	
+	static Vector3 GetWarpPos(LevelLocals lvl, Vector3 pos, Vector3 off, double angle)
+	{
+		off.XY = MC_Map.RotateVectorOffset(off.XY, angle);
+		return lvl.Vec3Offset(pos, off);
+	}
+	
 	static double SnapDouble(double v, double gridsize)
 	{
 		v = round(v / gridsize) * gridsize;
@@ -36,7 +57,7 @@ Class MC_Map play
 	}
 
 	// Code by PhantomBeta.
-	static Vector2, Vector2 SectorBounds (Sector sec, int mask = 0) 
+	static Vector2, Vector2 SectorBounds (Sector sec) 
 	{
 		Vector2 posMin = ( double.Infinity,  double.Infinity);
 		Vector2 posMax = (-double.Infinity, -double.Infinity);
@@ -44,9 +65,6 @@ Class MC_Map play
 		for (int i = 0; i < sec.lines.Size (); i++) 
 		{
 			Line l = sec.Lines [i];
-			
-			if (mask != 0 && !(l.flags & mask))
-				continue;
 			
 			posMin = (
 				min (posMin.X, l.v1.p.X, l.v2.p.X),
@@ -86,7 +104,7 @@ Class MC_Map play
 			
 			count[0]++;
 			
-			// Discard lines that definitely don't intersect the actor's radius
+			// Discard lines that don't intersect the actor's radius AT ALL.
 			if ((current.v1.p.x > xp && current.v2.p.x > xp) ||
 				(current.v1.p.x < xn && current.v2.p.x < xn) ||
 				(current.v1.p.y > yp && current.v2.p.y > yp) ||
@@ -98,8 +116,25 @@ Class MC_Map play
 		return count[0], count[1];
 	}
 	
+	//==========================================================================
+	//==========================================================================
+	
+	static bool LineIntersects(Vector3 pos, double radius, Vector2 v1, Vector2 v2)
+	{
+		Vector2 POff = level.Vec2Offset((radius, radius), (0,0));
+		Vector2 NOff = level.Vec2Offset((-radius, -radius), (0,0));
+		
+		if ((v1.x > POff.X && v2.x > POff.X) ||
+			(v1.x < NOff.X && v2.x < NOff.X) ||
+			(v1.y > POff.Y && v2.y > POff.Y) ||
+			(v1.y < NOff.Y && v2.y < NOff.Y))
+			return false;
+		return true;
+	}
+	
 	static MC_LineContainer GetIntersectingLines(Actor mo, Vector2 RH = (-1, -1), 
-		bool usepos = false, Vector3 pos = (0,0,0), int mask = 0)
+		bool usepos = false, Vector3 pos = (0,0,0), int mask = 0, 
+		MC_LineContainer Container = null)
 	{
 		if (!mo && !usepos)	return null;
 		if (RH.X <= 0.0)	
@@ -115,18 +150,23 @@ Class MC_Map play
 		// Find the line that this actor's centerpoint is closest to.
 		if (!usepos)
 			pos = mo.pos;
-		
-		double	dist = RH.X,
-				xp = pos.x + RH.X,
+			
+		Vector2 POff = level.Vec2Offset((RH.X, RH.X), (0,0)),
+				NOff = level.Vec2Offset((-RH.X, -RH.X), (0,0));
+		/*
+		double	xp = pos.x + RH.X,
 				xn = pos.x - RH.X,
 				yp = pos.y + RH.X,
 				yn = pos.y - RH.X;
+		*/
 		
-		let Container = MC_LineContainer.Create(mo, RH);
+		
+		if (!Container)	Container = MC_LineContainer.Create(mo, RH, pos);
+		else Container.Clear();
 		
 		BlockLinesIterator it;
-		if (usepos)	it = BlockLinesIterator.Create(mo, RH.X);
-		else		it = BlockLinesIterator.CreateFromPos((pos.x, pos.y, pos.z), RH.Y, RH.X);
+		if (usepos)		it = BlockLinesIterator.CreateFromPos((pos.x, pos.y, pos.z), RH.Y, RH.X);
+		else			it = BlockLinesIterator.Create(mo, RH.X);
 			
 		while (it.Next())
 		{
@@ -134,13 +174,18 @@ Class MC_Map play
 			
 			if (mask != 0 && !(current.flags & mask))
 				continue;
+				
+			Vector2 p1 = current.v1.p,
+					p2 = current.v2.p;
 			
 			// Discard lines that definitely don't intersect the actor's radius
-			if ((current.v1.p.x > xp && current.v2.p.x > xp) ||
-				(current.v1.p.x < xn && current.v2.p.x < xn) ||
-				(current.v1.p.y > yp && current.v2.p.y > yp) ||
-				(current.v1.p.y < yn && current.v2.p.y < yn))
-				continue; 
+			if ((p1.x > POff.X && p2.x > POff.X) ||
+				(p1.x < NOff.X && p2.x < NOff.X) ||
+				(p1.y > POff.Y && p2.y > POff.Y) ||
+				(p1.y < NOff.Y && p2.y < NOff.Y))
+				{
+					continue; 
+				}
 			
 			Container.AddLine(current);
 		}
@@ -203,13 +248,20 @@ Class MC_LineContainer play
 	Array<MC_Line> Lines;
 	Actor mo;
 	Vector2 RH;
-	static MC_LineContainer Create(Actor mo = null, Vector2 RH = (-1,-1))
+	Vector3 pos;
+	static MC_LineContainer Create(Actor mo = null, Vector2 RH = (-1,-1), Vector3 pos = (0,0,0))
 	{
 		let ls = new('MC_LineContainer');
-		ls.Lines.Clear();
-		ls.mo = mo;
-		ls.RH = RH;
+		ls.Init(mo, RH, pos);
 		return ls;
+	}
+	
+	void Init(Actor mo, Vector2 RH, Vector3 pos)
+	{
+		Lines.Clear();
+		self.mo = mo;
+		self.RH = RH;
+		self.pos = pos;
 	}
 	
 	int Size()	{	return Lines.Size();	}
@@ -222,6 +274,64 @@ Class MC_LineContainer play
 		if (linepart)
 			Lines.Push(linepart);
 	}
+	
+	void Clear()
+	{
+		Lines.Clear();
+	}
+	
+	int Find(Line ld)
+	{
+		if (!ld)	return Lines.Size();
+		int size = Lines.Size();
+		for (int i = 0; i < size; i++)
+		{
+			if (!Lines[i] || Lines[i].lin != ld)	continue;
+			return i;
+		}
+		return Lines.Size();
+	}
+	
+	void SortDeltas()
+	{
+		int size = Lines.Size();
+		if (size < 2)	return;
+		
+		Array<Double> Lengths;
+		int i = 0;
+		for (i = 0; i < size; i++)
+		{
+			let l = Lines[i].lin;
+			double len = level.Vec2Diff(pos.XY, l.Delta).Length();
+			Lengths.Push(len);
+		}
+		
+		// Swap through it all, so it goes from closest to furthest.
+		bool swapped = true;
+		int failsafe = 1000;
+		while (swapped && --failsafe > 0)
+		{
+			bool swapped = false;
+			for (int i = 0; i < size - 1; i++)
+			{
+				if (Lengths[i] > Lengths[i+1]) 
+				{
+					let temp = Lines[i];
+					Lines[i] = Lines[i+1];
+					Lines[i+1] = temp;
+					
+					double t = Lengths[i];
+					Lengths[i] = Lengths[i+1];
+					Lengths[i+1] = t;
+					swapped = true;
+				}
+				
+			}
+		}
+		if (failsafe < 1)	Console.Printf("WARNING: Failsafe hit!");
+		
+	}
+	
 }
 
 Class MC_Sector play

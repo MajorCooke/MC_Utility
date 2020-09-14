@@ -30,10 +30,10 @@ Class MC_Functions play
 		bool _2d, bool centerz = false)
 	{
 		// No point running this when without something to trace towards.
-		if (!bomb || !victim || radius <= 0)		return 0;
+		if (!bomb || !victim || radius <= 0)		return 0.0;
 		
 		// Full force in this case.
-		if (bomb == victim || full >= radius) 		return 1;
+		if (bomb == victim || full >= radius) 		return 1.0;
 		
 		// Aim from the base of the bomb to the victim's middle.
 		Vector3 bpos = bomb.pos,
@@ -168,16 +168,17 @@ Class MC_Functions play
 			if (!mo || mo.health < 1 || (!mo.bSHOOTABLE && !mo.bVULNERABLE))
 				continue;
 			
-			bool parent = eflags & EXF_PARENT;
-			bool inverse = eflags & EXF_INVERSE;
+			bool parent = (eflags & EXF_PARENT);
+			bool inverse = (eflags & EXF_INVERSE);
 			if (filter)
 			{
 				bool fil = false;
 				
-				if (inverse)	fil = (parent && !(mo is filter)) || (!parent && mo.GetClass() != filter);
-				else			fil = (parent && mo is filter) || (!parent && mo.GetClass() == filter);
+				if (inverse)	fil = ((parent && !(mo is filter)) || (!parent && mo.GetClass() != filter));
+				else			fil = ((parent && mo is filter) || (!parent && mo.GetClass() == filter));
 				
-				if (!fil)		continue;
+				if (fil)		continue;
+				
 			}
 				
 			// Filter out what classes are ineligible for damage.

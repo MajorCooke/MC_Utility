@@ -25,73 +25,6 @@ Class MCMsg play
 		notHudMessageHandler.PlainMsg("smallfont", "", (0,0), id: id);
 	}
 }
-//==============================================================================
-// MCHandlerStatic is simply used for loading up and maintaining the weapon 
-// slots and priorities only. Avoids the need to repopulate the weapon switching
-// data when it can just be done once.
-//
-// Static event handlers should be avoided otherwise. Eventually, the main
-// weapon switching itself will be moved to MCHandler so changes to this won't
-// be compromised by saved games. As in, the changes will kick in at the end of 
-// a map instead of needing to start a new game.
-//==============================================================================
-Class MCHandlerStatic : StaticEventHandler
-{
-	private MCWeaponList WeaponList;
-	private bool InGame;
-	private MCHandler Event;
-	
-	override void OnRegister()
-	{
-		SetOrder(4999);
-		Super.OnRegister();
-	}
-	
-	override void OnUnregister()
-	{
-		InGame = false;
-		Super.OnUnregister();
-	}
-	
-	override void WorldLoaded(WorldEvent e)
-	{
-		// Always refresh when loading from a saved game to reflect changes.
-		if (!WeaponList || e.IsSaveGame)
-			WeaponList = FetchWeaponList(e.IsSaveGame);
-		
-		InGame = true;
-	}
-	
-	override void WorldUnloaded(WorldEvent e)
-	{
-		InGame = false;
-	}
-	
-	//--------------------------------------------------------------------------
-	// Custom functions
-	//--------------------------------------------------------------------------
-	// Grabs the weapon list. Force will completely refresh it.
-	MCWeaponList FetchWeaponList(bool force = false)
-	{
-		MCWeaponList WL = WeaponList;
-		if (!WL || force)
-		{
-			WL = new('MCWeaponList');
-			WL.Init();
-		}
-		return WL;
-	}
-	
-	bool CheckInGame() const
-	{
-		return (InGame && gamestate == GS_LEVEL);
-	}
-	
-	static MCHandlerStatic Fetch()
-	{
-		return MCHandlerStatic(Find("MCHandlerStatic"));
-	}
-}
 
 //==============================================================================
 // Non-static handler.
@@ -117,8 +50,6 @@ Class MCHandler : EventHandler
 	AArray Monsters, DeadMonsters, Missiles, Tracker, Items, Shootables;
 	private int Timer;
 	private Array<QueuedWeapon> Queue;
-	private MCWeaponList WeaponList;
-	private MCHandlerStatic SEvent;
 	private bool InGame;
 //	private MCRenderLayerManager LayerMgr;
 	
@@ -133,12 +64,6 @@ Class MCHandler : EventHandler
 	bool IsPlayerPawn(Actor mo)
 	{
 		return (!mo || mo is "PlayerPawn" || mo.player);
-	}
-	
-	private void UpdateWeaponList()
-	{
-		if (!SEvent)	SEvent = MCHandlerStatic.Fetch();
-		WeaponList = SEvent.FetchWeaponList();
 	}
 	
 	void QueueWeaponTag(QueuedWeapon tosend)
@@ -226,7 +151,6 @@ Class MCHandler : EventHandler
 		Items = AArray.Create();
 		Queue.Clear();
 	//	if (!LayerMgr)	LayerMgr = new('MCRenderLayerManager');
-		UpdateWeaponList();
 	}
 	
 	override void NetworkProcess(ConsoleEvent e)
@@ -411,7 +335,8 @@ Class MCHandler : EventHandler
  properly sorted into the proper arrays first, then cleans out any nulls, 
  reducing memory usage and optimizing future Find() calls. Better performance!
  
- 3. You can then safely use Push() and Delete() as desired.
+ 3. You can then safely use Push() and Delete() as desired. Delete simply sets
+ that position to null instead of calling internal array Delete function.
 ================================================================================
 ==============================================================================*/
 

@@ -34,7 +34,9 @@ Class MC_LineLineTracer : LineTracer
 	}
 }
 
-// Tracer for GetDamageDistance.
+// Tracer for GetDamageDistance. INTENTIONALLY skips over all terrain and actors
+// except for 'trg' so it can get the closest point to the hitbox and use that
+// for calculating distance. Massive actors otherwise will not be properly hurt.
 Class GDDTracer : LineTracer
 {
 	Actor trg;

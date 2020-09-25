@@ -55,7 +55,10 @@ Class MC_Functions play
 		
 		if (trc.Results.HitType == TRACE_HitActor)
 		{
-			double dist = level.Vec3Diff(trc.Results.HitPos, bpos).Length();//trc.Results.Distance;
+			// Apparently this just indicates what was passed in, not the actual distance
+			// from start to hit point.
+		//	double dist = trc.Results.Distance;
+			double dist = level.Vec3Diff(trc.Results.HitPos, bpos).Length();
 			if (dist > radius)		return 0.0;
 			else if (dist <= full)	return 1.0;
 			else
@@ -114,19 +117,19 @@ Class MC_Functions play
 		RADF_FORCEZERORADIUSDMG
 	
 	*alert
-		Wake up monsters nearby?
+		Wake up monsters nearby? Use with care. Repeated usage of this causes
+		slowdowns with the game, especially on larger maps with more monsters!
 	
 	*DamageType
 		The damage type of the bomb. If none, use bomb's unless
 		XF_EXPLICITDAMAGETYPE is in flags.
 		
 	*filter
-		If not null, will exclude the filter class from receiving damage & thrust.
+		If not null, only this class can receive damage from it.
 		
 	*eflags
-		EXF_PARENT - If filter is a parent class, all child classes inheriting 
-			are excluded.
-		EXF_INVERSE - Filter behaves as a whitelist instead of a blacklist.
+		EXF_PARENT - Actors inheriting from filter are included with it.
+		EXF_INVERSE - Filter behaves as a blacklist instead of a whitelist.
 	
 	Returns # of actors damaged.
 	--------------------------------------------------------------------------*/
@@ -165,25 +168,22 @@ Class MC_Functions play
 		while (it.Next())
 		{
 			mo = it.thing;
-			if (!mo || mo.health < 1 || (!mo.bSHOOTABLE && !mo.bVULNERABLE))
+			if (!mo || (!mo.bSHOOTABLE && !mo.bVULNERABLE))
 				continue;
 			
+			// If the filter is used, only actors of that type may be damaged.
+			// If inverse is used, all BUT filter can be damaged.
 			bool parent = (eflags & EXF_PARENT);
 			bool inverse = (eflags & EXF_INVERSE);
 			if (filter)
 			{
-				bool fil = false;
-				
-				if (inverse)	fil = ((parent && !(mo is filter)) || (!parent && mo.GetClass() != filter));
-				else			fil = ((parent && mo is filter) || (!parent && mo.GetClass() == filter));
-				
-				if (fil)		continue;
-				
+				if ((!inverse && ((parent && !(mo is filter)) || (!parent && mo.GetClass() != filter))) ||
+					(inverse && ((parent && (mo is filter)) || (!parent && mo.GetClass() == filter))))
+						continue;
 			}
 				
 			// Filter out what classes are ineligible for damage.
-			bool NoDamage = false;
-			NoDamage = (
+			bool NoDamage = (
 				(mo.bNORADIUSDMG && !bomb.bFORCERADIUSDMG) ||
 				(mo == source && !(flags & XF_HURTSOURCE)) ||
 				(bomb.bDONTHARMCLASS && bomb.GetClass() == mo.GetClass()) ||
@@ -196,7 +196,7 @@ Class MC_Functions play
 			
 			// No need for distance checks here. A trace is performed later which
 			// handles that for this function.
-			if	(!mo.CheckSight(bomb, SF_IGNOREVISIBILITY|SF_IGNOREWATERBOUNDARY))
+			if (!mo.CheckSight(bomb, SF_IGNOREVISIBILITY|SF_IGNOREWATERBOUNDARY))
 				continue;
 			
 			// Actor qualifies. Record it and whether to deal damage or not.
@@ -233,7 +233,8 @@ Class MC_Functions play
 			
 			newthrust = newthrust * 0.5 / double(mo.mass);
 			
-			if (newthrust >= 0.01 && !mo.bDONTTHRUST && (!bomb.bNODAMAGETHRUST || (tflags & RADF_NODAMAGE)))
+			if (newthrust >= 0.01 && !mo.bDONTTHRUST && 
+				(!bomb.bNODAMAGETHRUST || (tflags & RADF_NODAMAGE)))
 			{
 				Vector3 bpos = bomb.pos;
 				Vector3 mpos = mo.pos + (0,0,mo.height * 0.5);
@@ -257,9 +258,13 @@ Class MC_Functions play
 					count++;
 			}
 		}
+		
+		// Side note, try not to rely on doing this often. It causes immense slowdowns.
 		if (alert)		bomb.A_AlertMonsters();
 		return count;
 	}
+	
+	
 	//--------------------------------------------------------------------------
 	// Replicates DamageMobj without actually affecting anyone.
 	// * tar - Target. Receiver of damage.

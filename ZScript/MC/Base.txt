@@ -1,13 +1,4 @@
-#include "ZScript/MC/WeaponSwitch.txt"
-#include "ZScript/MC/Constants.txt"
-#include "ZScript/MC/ActorDisplay.txt"
-//#include "ZScript/MC/HUDRenderLayers.txt"
-#include "ZScript/MC/Relations.txt"
-#include "ZScript/MC/Morph.txt"
-#include "ZScript/MC/Beam.txt"
-#include "ZScript/MC/Actor.txt"
-#include "ZScript/MC/LineTracer.txt"
-#include "ZScript/MC/Map.txt"
+
 
 // A simple set or wrappers for making ACS-style HUD messages.
 // Calling these is as simple as:
@@ -50,7 +41,7 @@ Class MCHandler : EventHandler
 	AArray Monsters, DeadMonsters, Missiles, Tracker, Items, Shootables;
 	private int Timer;
 	private Array<QueuedWeapon> Queue;
-	private bool InGame;
+	private bool AllowKB;
 //	private MCRenderLayerManager LayerMgr;
 	
 	//--------------------------------------------------------------------------
@@ -150,8 +141,13 @@ Class MCHandler : EventHandler
 		Tracker = AArray.Create();
 		Items = AArray.Create();
 		Queue.Clear();
+		TestForKB();
+		
+		
 	//	if (!LayerMgr)	LayerMgr = new('MCRenderLayerManager');
 	}
+	
+	
 	
 	override void NetworkProcess(ConsoleEvent e)
 	{

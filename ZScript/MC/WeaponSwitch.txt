@@ -36,12 +36,32 @@ extend class MCHandler
 			i--;
 		}
 	}
+	
+	private void TestForKB()
+	{
+		AllowKB = false;
+		for (int i = 0; i < AllActorClasses.Size(); i++)
+		{
+			let cls = (Class<Weapon>)(AllActorClasses[i]);
+			if (!cls)	continue;
+			
+			let defs = GetDefaultByType(cls);
+			if (defs.SlotNumber > -1 && defs.SlotNumber < 10 &&
+				defs.SlotPriority >= 0.0 && defs.SlotPriority <= 1.0)
+			{
+				AllowKB = true;
+				return;
+			}
+		}
+	}
 
 	// InputProcess
 	// This overrides the 'slot <X>/weapnext/weapprev' commands and comes first.
 	// This is where it all begins.
+	
 	private ui bool CheckInputWeaponChange(InputEvent ev)
 	{
+		if (!CheckKB())	return false;
 		if (ev.Type == InputEvent.Type_KeyDown)
 		{
 			int index = consoleplayer;
@@ -58,7 +78,7 @@ extend class MCHandler
 			
 			// They exist, but don't operate on dead/morphed players.
 			let plr = player.mo;
-			if (!plr || plr.health < 1 || plr.FindInventory("PowerMorph",true))
+			if (!plr || plr.health < 1 || plr.FindInventory("PowerMorph",true) || plr.GetClass() == 'DoomPlayer')
 				return false;
 			CVar KBPriority = CVar.GetCvar('MC_KBPriority', player);
 			static const String KeyBindsCCMDs [] = {
@@ -115,6 +135,7 @@ extend class MCHandler
 				
 				if (ev.KeyScan == bind1 || ev.KeyScan == bind2) 
 				{
+				
 					//Console.Printf("%s", KeyBindsNetEvents[i]);
 					// Calls NetworkEvent in Base.txt and assembles the command
 					// to call ChangeWeapons function below, and aborts the 
@@ -125,6 +146,11 @@ extend class MCHandler
 			}
 		}
 		return false;
+	}
+	
+	private bool CheckKB() const
+	{
+		return AllowKB;
 	}
 
 	//==========================================================================

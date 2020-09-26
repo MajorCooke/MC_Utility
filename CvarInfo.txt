@@ -1,6 +1,7 @@
 
 // Merely for version's sake. 
 noarchive server cheat float MC_Version = 1.0;
+noarchive server int MC_Debug = 0;
 
 //==============================================================================
 // Keyconf Buster

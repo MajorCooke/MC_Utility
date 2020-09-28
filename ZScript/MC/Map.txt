@@ -139,7 +139,7 @@ Class MC_Map play
 		if (!mo && !usepos)	return null;
 		if (RH.X <= 0.0)	
 		{
-			if (usepos)	return null;
+			if (!mo)		return null;
 			RH.X = mo.radius;
 			if (RH.X <= 0.0)	return null;
 		}
@@ -151,22 +151,15 @@ Class MC_Map play
 		if (!usepos)
 			pos = mo.pos;
 			
-		Vector2 POff = level.Vec2Offset((RH.X, RH.X), (0,0)),
-				NOff = level.Vec2Offset((-RH.X, -RH.X), (0,0));
-		/*
-		double	xp = pos.x + RH.X,
-				xn = pos.x - RH.X,
-				yp = pos.y + RH.X,
-				yn = pos.y - RH.X;
-		*/
-		
+		Vector2 POff = pos.XY + RH,
+				NOff = pos.XY - RH;
 		
 		if (!Container)	Container = MC_LineContainer.Create(mo, RH, pos);
 		else Container.Clear();
 		
 		BlockLinesIterator it;
-		if (usepos)		it = BlockLinesIterator.CreateFromPos((pos.x, pos.y, pos.z), RH.Y, RH.X);
-		else			it = BlockLinesIterator.Create(mo, RH.X);
+		if (usepos)		it = BlockLinesIterator.CreateFromPos(pos, RH.Y, RH.X);
+		else			it = BlockLinesIterator.Create(mo);
 			
 		while (it.Next())
 		{
@@ -209,10 +202,11 @@ Class MC_Map play
 		{
 			LC = MC_Map.GetIntersectingLines(mo, RH, true, pos);
 			if (!LC)	return null;
+			
 		}
 		
 		let SC = MC_SectorContainer.Create(mo, RH);
-		if (SC)
+		if (SC && LC)
 		{
 			for (int i = 0; i < LC.Size(); i++)
 			{
@@ -225,7 +219,8 @@ Class MC_Map play
 		}
 		
 		if (SC.Size() < 1)	
-			SC = null;
+			SC.AddSector(Level.PointInSector(pos.XY));
+		
 		return SC;
 	}
 }
@@ -291,47 +286,6 @@ Class MC_LineContainer play
 		}
 		return Lines.Size();
 	}
-	
-	void SortDeltas()
-	{
-		int size = Lines.Size();
-		if (size < 2)	return;
-		
-		Array<Double> Lengths;
-		int i = 0;
-		for (i = 0; i < size; i++)
-		{
-			let l = Lines[i].lin;
-			double len = level.Vec2Diff(pos.XY, l.Delta).Length();
-			Lengths.Push(len);
-		}
-		
-		// Swap through it all, so it goes from closest to furthest.
-		bool swapped = true;
-		int failsafe = 1000;
-		while (swapped && --failsafe > 0)
-		{
-			bool swapped = false;
-			for (int i = 0; i < size - 1; i++)
-			{
-				if (Lengths[i] > Lengths[i+1]) 
-				{
-					let temp = Lines[i];
-					Lines[i] = Lines[i+1];
-					Lines[i+1] = temp;
-					
-					double t = Lengths[i];
-					Lengths[i] = Lengths[i+1];
-					Lengths[i+1] = t;
-					swapped = true;
-				}
-				
-			}
-		}
-		if (failsafe < 1)	Console.Printf("WARNING: Failsafe hit!");
-		
-	}
-	
 }
 
 Class MC_Sector play
@@ -368,7 +322,7 @@ Class MC_SectorContainer play
 	{
 		if (!sect)	return;
 		
-		for (int i = 0; i < Size(); i++)
+		for (int i = 0; i < Sectors.Size(); i++)
 		{
 			if (Sectors[i] && Sectors[i].sec == sect)
 				return;

@@ -1,5 +1,17 @@
 Class MC_Map play
 {
+	static BlockThingsIterator MakeBTIPos(Vector3 pos, Vector2 RH)
+	{
+		let it = BlockThingsIterator.CreateFromPos(
+			pos.x, pos.y, pos.z - RH.X, RH.Y + RH.X * 2, RH.X, false);
+		return it;
+	}
+
+	static Vector3 AnglesToVector(double angle, double pitch)
+	{
+		return (cos(angle)*cos(pitch), sin(angle)*cos(pitch), -sin(pitch));
+	}
+
 	static Vector2 RotateVector(Vector2 s, double angle, Vector2 rPoint)
 	{
 		s -= rPoint;

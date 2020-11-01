@@ -56,7 +56,7 @@ Class MC_Functions play
 		if (trc.Results.HitType == TRACE_HitActor)
 		{
 			// Apparently this just indicates what was passed in, not the actual distance
-			// from start to hit point.
+			// from start to hit point. Only adjusted if it hit a plane, weirdly enough...
 		//	double dist = trc.Results.Distance;
 			double dist = level.Vec3Diff(trc.Results.HitPos, bpos).Length();
 			if (dist > radius)		return 0.0;
@@ -223,8 +223,8 @@ Class MC_Functions play
 			// Deal the damage/thrusting.
 			// First, calculate the damage based on distance. In this case it does
 			// a trace to find the closest point on the bounding box.
-			double falloff = MC_Functions.GetDamageFalloff(bomb, mo, double(radius), double(full), bomb.bOLDRADIUSDMG);
-			double tfall = MC_Functions.GetDamageFalloff(bomb, mo, double(trad), double(tfull), bomb.bOLDRADIUSDMG);
+			double falloff = MC_Functions.GetDamageFalloff(bomb, mo, double(radius), double(full), bomb.bOLDRADIUSDMG, (flags & XF_NOTMISSILE));
+			double tfall = MC_Functions.GetDamageFalloff(bomb, mo, double(trad), double(tfull), bomb.bOLDRADIUSDMG, (flags & XF_NOTMISSILE));
 			double newthrust = thrust * tfall;
 			int dmg = int(round(damage * falloff));
 			

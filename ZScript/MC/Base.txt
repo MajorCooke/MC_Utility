@@ -375,15 +375,9 @@ Class AArray
 	// Find an actor's position in the array.
 	// GZDoom cannot convert uint to int on return so it must be assigned first.
 	// Also, If nulls are not desired, return the size of the array.
-	int Find(Actor mo, bool nulls = true) const
+	int Find(Actor mo) const
 	{
-		if (!nulls && mo == null)
-			return Actors.Size();
-		
-		if (nulls && mo == null)
-			for (int i = 0; i < Actors.Size(); i++)
-				if (!Actors[i])	return i;
-				
+		if (!mo)	return Actors.Size();
 		int pos = Actors.Find(mo);
 		return pos;
 	}

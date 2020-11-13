@@ -37,7 +37,7 @@ Class MCHandler : EventHandler
 	}
 	const Second = 35;
 	const TimeTrigger = Second * 5;
-
+	
 	AArray Monsters, DeadMonsters, Missiles, Tracker, Items, Shootables;
 	private int Timer;
 	private Array<QueuedWeapon> Queue;
@@ -232,17 +232,15 @@ Class MCHandler : EventHandler
 	{
 		Actor mo = e.thing;
 		
-		if (!mo || mo.bNOINTERACTION || mo is "Inventory" || mo.bNOSECTOR || 
-			IsPlayerPawn(mo) || mo is "RandomSpawner")
+		if (!mo || mo.bNOINTERACTION || mo.bNOSECTOR || IsPlayerPawn(mo) || 
+			mo is "RandomSpawner")
 			return;
-
+		
 		if (mo.bMISSILE && mo.bSEEKERMISSILE)
 		{
-			Missiles.Push(mo);
-			return;
+			Missiles.Push(mo);	
 		}
-		
-		if ((mo.bISMONSTER || mo.bSHOOTABLE))
+		else if ((mo.bISMONSTER || mo.bSHOOTABLE))
 		{
 			if (mo.health > 0)
 				Monsters.Push(mo);
@@ -370,7 +368,17 @@ Class AArray
 	// Information.
 	//--------------------------------------------------------------------------
 	
-	int Size() const	{	return Actors.Size();	}
+	int Size(bool real = false) const	
+	{	
+		if (real)
+		{
+			int count = 0;
+			for (int i = 0; i < Actors.Size(); i++)
+				if (Actors[i])	count++;
+			return count;
+		}
+		return Actors.Size();	
+	}
 	
 	// Find an actor's position in the array.
 	// GZDoom cannot convert uint to int on return so it must be assigned first.
@@ -397,6 +405,12 @@ Class AArray
 		return ret;
 	}
 	
+	bool CheckActorType(Actor mo, bool strict = false) const
+	{
+		return (mo && (ClassType == null || 
+			(mo.GetClass() == ClassType || (!strict && mo is ClassType))));
+	}
+	
 	//--------------------------------------------------------------------------
 	// Manipulation functions.
 	//--------------------------------------------------------------------------
@@ -406,9 +420,27 @@ Class AArray
 	// Else, allow inheritance.
 	void Push(Actor mo, bool strict = false)
 	{
-		if (mo && (ClassType == null || 
-			(mo.GetClass() == ClassType || (!strict && mo is ClassType))))
+		if (CheckActorType(mo, strict))
 			Actors.Push(mo);
+	}
+	
+	bool Inject(Actor mo, bool strict = false)
+	{
+		if (!CheckActorType(mo, strict))	
+			return false;
+		
+		if (Actors.Find(mo) < Actors.Size())
+			return true;
+			
+		for (int i = 0; i < Actors.Size(); i++)
+		{
+			if (Actors[i] == null)
+			{
+				Actors[i] = mo;
+				return true;
+			}
+		}
+		return false;
 	}
 	
 	// Removes the actor and 'schedules' shrinking via a null.
@@ -453,7 +485,14 @@ Class AArray
 	}
 	
 	// Removes all actors from the array.
-	void Clear() { Actors.Clear(); }
+	void Clear(bool keepsize = false) 
+	{
+		if (keepsize)
+			for (int i = 0; i < Actors.Size(); i++)
+				Actors[i] = null;
+		else
+			Actors.Clear(); 
+	}
 	
 	//--------------------------------------------------------------------------
 	// Internal functions only.
@@ -496,11 +535,11 @@ Class CAArray
 	static CAArray Create(int size = -1, Name type = '')
 	{
 		CAArray arr = new('CAArray');
-		if (type != '')
+		if (type != '' && type != 'None')
 		{
 			Class<Actor> test = type;
 			if (!test)
-				Console.Printf("ClassArray warning: Ignoring invalid filter %s", type);
+				Console.Printf("CAArray warning: Ignoring invalid filter %s", type);
 		}
 		arr.Init(size, type);
 		return arr;
@@ -519,37 +558,37 @@ Class CAArray
 	// Information.
 	//--------------------------------------------------------------------------
 	
-	int Size() const	{	return Classes.Size();	}
+	int Size(bool real = false) const	
+	{	
+		if (real)
+		{
+			int count = 0;
+			for (int i = 0; i < Classes.Size(); i++)
+				if (Classes[i] != null)	count++;
+			return count;
+		}
+		return Classes.Size();	
+	}
 	
 	// Find an actor's position in the array.
 	// GZDoom cannot convert uint to int on return so it must be assigned first.
 	// Also, If nulls are not desired, return the size of the array.
 	int Find(Class<Actor> mo, bool nulls = true) const
 	{
-		if (!nulls && mo == null)
-			return Classes.Size();
-		
-		if (nulls && mo == null)
+		if (mo == null)
+		{
 			for (int i = 0; i < Classes.Size(); i++)
-				if (!Classes[i])	return i;
-				
+				if (!Classes[i])	return i;		
+			return Classes.Size();
+		}		
 		int pos = Classes.Find(mo);
 		return pos;
 	}
 	
-	// Actor version, returns an actor instead of a position.
-	Class<Actor> FindClass(Class<Actor> mo) const
+	bool CheckClassType(Class<Actor> mo, bool strict = false) const
 	{
-		int size = Classes.Size();
-		if (size < 1)
-			return null;
-			
-		int pos = Classes.Find(mo);
-		Class<Actor> ret = null;
-		
-		if (pos < size)	
-			ret = Classes[pos];
-		return ret;
+		return (mo && (ClassType == null || 
+			(mo == ClassType || (!strict && mo is ClassType))));
 	}
 	
 	//--------------------------------------------------------------------------
@@ -561,9 +600,28 @@ Class CAArray
 	// Else, allow inheritance.
 	void Push(Class<Actor> mo, bool strict = false)
 	{
-		if (mo && (ClassType == null || 
-			(mo == ClassType || (!strict && mo is ClassType))))
+		if (CheckClassType(mo, strict))
 			Classes.Push(mo);
+	}
+	
+	// Finds a null and injects mo into its spot.
+	bool Inject(Class<Actor> mo, bool strict = false)
+	{
+		if (!CheckClassType(mo, strict))
+			return false;
+			
+		if (Classes.Find(mo) < Classes.Size())
+			return true;// Already in, nothing to do here.
+		
+		for (int i = 0; i < Classes.Size(); i++)
+		{
+			if (Classes[i] == null)
+			{
+				Classes[i] = mo;
+				return true; // Found a null.
+			}
+		}
+		return false;
 	}
 	
 	// Removes the actor and 'schedules' shrinking via a null.
@@ -608,13 +666,20 @@ Class CAArray
 	}
 	
 	// Removes all Classes from the array.
-	void Clear() { Classes.Clear(); }
+	void Clear(bool keepsize = false) 
+	{
+		if (keepsize)
+			for (int i = 0; i < Classes.Size(); i++)
+				Classes[i] = null;
+		else
+			Classes.Clear(); 
+	}
 	
 	//--------------------------------------------------------------------------
-	// Internal functions only.
+	// Sets the size of the array.
 	//--------------------------------------------------------------------------
 	
-	private int SetSize(int size)
+	int SetSize(int size)
 	{
 		int old = Classes.Size();
 		if (old == size)

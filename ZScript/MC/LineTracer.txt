@@ -40,6 +40,14 @@ Class MC_LineLineTracer : LineTracer
 Class GDDTracer : LineTracer
 {
 	Actor trg;
+	bool HitFloor, HitWall, HitCeiling;
+	
+	void SetHittable(int flor = -1, int wall = -1, int ceil = -1)
+	{
+		if (flor > -1 && flor < 2)	HitFloor = flor;
+		if (wall > -1 && wall < 2)	HitWall = wall;
+		if (ceil > -1 && ceil < 2)	HitCeiling = ceil;
+	}
 	
 	override ETraceStatus TraceCallback() 
 	{
@@ -52,8 +60,24 @@ Class GDDTracer : LineTracer
 			}
 
 			case TRACE_HitFloor:
+				return (HitFloor) ? TRACE_Stop : TRACE_Skip;
 			case TRACE_HitCeiling:
+				return (HitCeiling) ? TRACE_Stop : TRACE_Skip;
 			case TRACE_HitWall:
+				if (HitWall)
+				{
+					if (Results.Tier == TIER_Upper || Results.Tier == TIER_Lower) 
+						return TRACE_Stop;
+
+					int hf = Results.HitLine.flags;
+					
+					if (hf & (Line.ML_BLOCKEVERYTHING | Line.ML_BLOCKHITSCAN))
+						return TRACE_Stop;
+					
+					if ((hf & Line.ML_BLOCKING) && (hf & Line.ML_TWOSIDED))
+						return TRACE_Stop;
+					
+				}
 				return TRACE_Skip;
 			case TRACE_HitNone:
 				return TRACE_Stop;

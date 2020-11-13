@@ -1,6 +1,42 @@
 Class MC_Functions play
 {
 	/*--------------------------------------------------------------------------
+	GetFalloff
+	
+	Gets a falloff scalar, primarily used for effect radius. Can also be 
+	thought of as how much of a percentage (when multiplied by 100) a thing has
+	travelled from point 1 (dmax) to point 2 (dmin).
+	
+	-- Arguments --
+	*dmin 
+		The closest distance to check the calculation.
+		
+	*dmax
+		The farthest distance.
+		
+	*dist
+		The current point of travel.
+		
+	-- Result --
+	Returns a scalar value between [0.0, 1.0].
+	--------------------------------------------------------------------------*/
+
+	static double GetFalloff(double dmin, double dmax, double dist)
+	{
+		dmin = Max(0, dmin);
+		dmax = Max(0, dmin, dmax);
+		
+			 if (dist <= dmin)	return 1.0;
+		else if (dist > dmax)	return 0.0;
+		else
+		{
+			double radius = Max(1, dmax - dmin);
+			return (1.0 - ((dist - dmin) / radius));
+		}
+		return 0;
+	}
+
+	/*--------------------------------------------------------------------------
 	GetDamageFalloff
 	
 	Does a trace to the victim from the bomb, and calculates the damage falloff.
@@ -148,7 +184,10 @@ Class MC_Functions play
 		if (trad < 0)	trad = radius;
 		if (tfull < 0)	tfull = full;
 		
-		if (!(flags & XF_EXPLICITDAMAGETYPE) && DamageType == 'None')
+		if ((damage == 0 && thrust == 0) || (radius == 0 && trad == 0))
+			return 0;
+		
+		if (source && !(flags & XF_EXPLICITDAMAGETYPE) && DamageType == 'None')
 			DamageType = source.DamageType;
 		
 		// Set up the iterator stuff. Do NOT deal any damage or thrusting until

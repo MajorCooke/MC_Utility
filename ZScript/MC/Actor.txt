@@ -176,13 +176,17 @@ Class MC_Functions play
 		bool alert = false, Name DamageType = 'None', 
 		Class<Actor> filter = null, int eflags = EXF_PARENT)
 	{
-		if (!bomb)	return 0;
+		if (!bomb)	
+			return 0;
 		
+		bool DamageAsVel = false;
+		double thrustmul = 30.0;
 		if (damage < 0)	damage = bomb.ExplosionDamage;
 		if (radius < 0)	radius = bomb.ExplosionRadius;
-		if (thrust < 0)	thrust = double(damage * 30.0);
-		if (trad < 0)	trad = radius;
-		if (tfull < 0)	tfull = full;
+		if (thrust < 0)	{thrust = double(damage * thrustmul);	DamageAsVel = true; }
+		if (trad < 0)	trad = double(radius);
+		full = Max(0, full);
+		if (tfull < 0)	tfull = double(full);
 		
 		if ((damage == 0 && thrust == 0) || (radius == 0 && trad == 0))
 			return 0;
@@ -262,40 +266,69 @@ Class MC_Functions play
 			// Deal the damage/thrusting.
 			// First, calculate the damage based on distance. In this case it does
 			// a trace to find the closest point on the bounding box.
-			double falloff = MC_Functions.GetDamageFalloff(bomb, mo, double(radius), double(full), bomb.bOLDRADIUSDMG, (flags & XF_NOTMISSILE));
-			double tfall = MC_Functions.GetDamageFalloff(bomb, mo, double(trad), double(tfull), bomb.bOLDRADIUSDMG, (flags & XF_NOTMISSILE));
-			double newthrust = thrust * tfall;
-			int dmg = int(round(damage * falloff));
+			int dmg = damage;
+			int dflags = DMG_EXPLOSION|DMG_NO_FACTOR|DMG_NO_PROTECT|DMG_THRUSTLESS;
+			int thr = 10000;
+			if (source)		thr = source.GetModifiedDamage(DamageType, thr, false);
+			if (thr > 0)	thr = mo.ApplyDamageFactor(DamageType, thr);
+			if (thr > 0)	thr = mo.GetModifiedDamage(DamageType, thr, true);
+			double thrs = double(thr) * 0.0001;
 			
+			if (mo.bKILLED)
+				dmg = 0;
+			else if (dmg > 0)
+			{
+				double falloff = MC_Functions.GetDamageFalloff(bomb, mo, double(radius), double(full), bomb.bOLDRADIUSDMG, (flags & XF_NOTMISSILE));
+				dmg = int(round(damage * mo.RadiusDamageFactor * falloff * thrs));
+			}
 			// Bear in mind the division by mass GREATLY dilutes the thrusting
 			// power, hence why if thrust < 0, it'll multiply by 30.
-			
-			newthrust = newthrust * 0.5 / double(mo.mass);
-			
-			if (newthrust >= 0.01 && !mo.bDONTTHRUST && 
-				(!bomb.bNODAMAGETHRUST || (tflags & RADF_NODAMAGE)))
+						
+			if (thrust > 0 && !mo.bDONTTHRUST && (!bomb.bNODAMAGETHRUST || (tflags & RADF_NODAMAGE)))
 			{
-				Vector3 bpos = bomb.pos;
-				Vector3 mpos = mo.pos + (0,0,mo.height * 0.5);
-				if (mo == bomb)
-					mo.Vel.Z += newthrust;
-				else if (bomb.bOLDRADIUSDMG) 
-					mo.Vel.XY += level.Vec2Diff(bpos.XY, mpos.XY).Unit() * newthrust;
-				else
-					mo.Vel += level.Vec3Diff(bpos, mpos).Unit() * newthrust;
+				double newthrust = thrust;
+				double tfall = MC_Functions.GetDamageFalloff(bomb, mo, double(trad), double(tfull), bomb.bOLDRADIUSDMG, (flags & XF_NOTMISSILE));
+				if (DamageAsVel)
+					newthrust = double(dmg * thrustmul);
 				
-				if ((tflags & RADF_NODAMAGE) && !(tflags & RADF_NOIMPACTDAMAGE) &&
-					!(mo is 'PlayerPawn') && !mo.player)
-					mo.bBLASTED = true;
+				if (!(tflags & RADF_NOFACTORTHRUST))
+				{
+					newthrust *= thrs;
+				}
+				
+				newthrust = (newthrust * tfall) * 0.5 / double(mo.mass);
+				if (newthrust >= 0.01)
+				{
+					Vector3 bpos = bomb.pos;
+					Vector3 mpos = mo.pos + (0,0,mo.height * 0.5);
+					
+					if (flags & XF_NOTMISSILE)
+						bpos.Z += bomb.height * 0.5;
+					
+					if (mo == bomb)
+						mo.Vel.Z += newthrust;
+					else if (bomb.bOLDRADIUSDMG) 
+						mo.Vel.XY += level.Vec2Diff(bpos.XY, mpos.XY).Unit() * newthrust;
+					else
+						mo.Vel += level.Vec3Diff(bpos, mpos).Unit() * newthrust;
+					
+					if ((tflags & RADF_NODAMAGE) && !(tflags & RADF_NOIMPACTDAMAGE) &&
+						!(mo is 'PlayerPawn') && !mo.player)
+						mo.bBLASTED = true;
+				}
 			}
+			
 			
 			int res = (tflags & RADF_NODAMAGE) ? 0 : dmg;
 			
 			if (res > 0 || bomb.bFORCEZERORADIUSDMG)
 			{
-				if (mo.DamageMobj(bomb, source, res, DamageType, DMG_THRUSTLESS|DMG_EXPLOSION) > 0)
+				res = mo.DamageMobj(bomb, source, res, DamageType, dflags);
+				if (res > 0)
 					count++;
 			}
+			
+			
 		}
 		
 		// Side note, try not to rely on doing this often. It causes immense slowdowns.
@@ -328,7 +361,7 @@ Class MC_Functions play
 		
 		PlayerInfo player = tar.player;
 		bool telefragDamage = (!tar.bLAXTELEFRAGDMG && damage >= Actor.TELEFRAG_DAMAGE);
-		bool forced = (flags & DMG_FORCED);
+		bool forced = (flags & DMG_FORCED) && !player;
 		
 		// Is it spectral?
 		if (!forced && tar.bSPECTRAL && !telefragDamage)
@@ -388,6 +421,9 @@ Class MC_Functions play
 				{
 					damage = int(damage * src.DamageMultiply);
 					
+					if (tar == src)
+						damage = int(damage * tar.SelfDamageFactor);
+					
 					// We want to avoid any custom behavior overrides since
 					// they may try to trigger DamageMobj. Like ClusterPlex's
 					// Rainbow Halo.
@@ -403,7 +439,7 @@ Class MC_Functions play
 							damage = pwr.ApplyDamageFactors(pwr.GetClass(), mod, damage, damage * 4);
 							
 							if (damage < 1)
-								return damage;
+								return 0;
 						}
 					}
 					
@@ -518,6 +554,9 @@ Class MC_Functions play
 				if (src)
 				{
 					damage = int(damage * src.DamageMultiply);
+					
+					if (tar == src)
+						damage = int(damage * src.SelfDamageFactor);
 					
 					// We want to avoid any custom behavior overrides since
 					// they may try to trigger DamageMobj. Like ClusterPlex's

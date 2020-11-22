@@ -40,6 +40,11 @@ class S7_FastRNG {
 
         return CreateWithSeed (seed);
     }
+	
+	S7_FastRNG Refresh()
+	{
+		return S7_FastRNG.Create();
+	}
 
     void Hash () {
         seed = (seed + 0x7ED55D16) + (seed <<  12);

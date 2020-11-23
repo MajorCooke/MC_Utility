@@ -267,11 +267,15 @@ Class MC_Functions play
 			// First, calculate the damage based on distance. In this case it does
 			// a trace to find the closest point on the bounding box.
 			int dmg = damage;
-			int dflags = DMG_EXPLOSION|DMG_NO_FACTOR|DMG_NO_PROTECT|DMG_THRUSTLESS;
+			
 			int thr = 10000;
-			if (source)		thr = source.GetModifiedDamage(DamageType, thr, false);
-			if (thr > 0)	thr = mo.ApplyDamageFactor(DamageType, thr);
-			if (thr > 0)	thr = mo.GetModifiedDamage(DamageType, thr, true);
+			if (!mo.bKILLED)
+			{
+				if (source)		thr = source.GetModifiedDamage(DamageType, thr, false);
+				if (thr > 0)	thr = mo.GetModifiedDamage(DamageType, thr, true);
+				if (thr > 0)	thr = mo.ApplyDamageFactor(DamageType, thr);
+			}
+			
 			double thrs = double(thr) * 0.0001;
 			
 			double falloff = MC_Functions.GetDamageFalloff(bomb, mo, double(radius), double(full), bomb.bOLDRADIUSDMG, (flags & XF_NOTMISSILE));
@@ -319,7 +323,7 @@ Class MC_Functions play
 			
 			if (res > 0 || bomb.bFORCEZERORADIUSDMG)
 			{
-				res = mo.DamageMobj(bomb, source, res, DamageType, dflags);
+				res = mo.DamageMobj(bomb, source, res, DamageType, DMG_EXPLOSION|DMG_NO_FACTOR|DMG_NO_PROTECT|DMG_THRUSTLESS);
 				if (res > 0)
 					count++;
 			}

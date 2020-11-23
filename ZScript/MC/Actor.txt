@@ -274,13 +274,9 @@ Class MC_Functions play
 			if (thr > 0)	thr = mo.GetModifiedDamage(DamageType, thr, true);
 			double thrs = double(thr) * 0.0001;
 			
-			if (mo.bKILLED)
-				dmg = 0;
-			else if (dmg > 0)
-			{
-				double falloff = MC_Functions.GetDamageFalloff(bomb, mo, double(radius), double(full), bomb.bOLDRADIUSDMG, (flags & XF_NOTMISSILE));
-				dmg = int(round(damage * mo.RadiusDamageFactor * falloff * thrs));
-			}
+			double falloff = MC_Functions.GetDamageFalloff(bomb, mo, double(radius), double(full), bomb.bOLDRADIUSDMG, (flags & XF_NOTMISSILE));
+			dmg = int(round(damage * mo.RadiusDamageFactor * falloff * thrs));
+			
 			// Bear in mind the division by mass GREATLY dilutes the thrusting
 			// power, hence why if thrust < 0, it'll multiply by 30.
 						

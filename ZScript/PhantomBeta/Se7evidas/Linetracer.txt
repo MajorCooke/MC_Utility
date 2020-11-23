@@ -16,8 +16,8 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-class S7_Projectile_Trace : LineTracer {
-    S7_Projectile sourceActor;
+class MC_S7_Projectile_Trace : LineTracer {
+    MC_S7_Projectile sourceActor;
     transient Array<F3DFloor> ffloorsToIgnore;
     transient Array<Line> activeLinesToIgnore;
     transient Array<Actor> actorsToIgnore;

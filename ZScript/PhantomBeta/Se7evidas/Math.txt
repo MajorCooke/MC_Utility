@@ -17,7 +17,7 @@
 */
 
 /** Math extensions **/
-class S7_Math {
+class MC_S7_Math {
     /** Constants **/
     const Pi  = 3.14159265358979323846264338328;
     const Tau = Pi * 2.;
@@ -42,7 +42,7 @@ class S7_Math {
         return x * x * (3. - 2. * x);
     }
 
-    static double, double GenerateGaussianNoise (S7_FastRNG rng, double mean, double stddev) {
+    static double, double GenerateGaussianNoise (MC_S7_FastRNG rng, double mean, double stddev) {
         double u, v, s;
         do {
             u = rng.GetFloat (-1., 1.);

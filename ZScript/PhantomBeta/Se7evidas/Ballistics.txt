@@ -16,7 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-extend class S7_Math {
+extend class MC_S7_Math {
     /** Target interception **/
     /* Summary:
     **  Calculates the future position of a moving target so that a projectile launched immediately can hit it.

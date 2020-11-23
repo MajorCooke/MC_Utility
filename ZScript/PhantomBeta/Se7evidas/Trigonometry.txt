@@ -16,7 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-extend class S7_Math {
+extend class MC_S7_Math {
     /** Trigonometry **/
     /* Summary:
     **  Gets the angle and pitch from a point to another.
@@ -264,7 +264,7 @@ extend class S7_Math {
     ** Returns:
     **  Returns a bool indicating whether the point is inside the polygon.
     */
-    static bool PointInPolygon (Vector2 point, S7_Polygon poly) {
+    static bool PointInPolygon (Vector2 point, MC_S7_Polygon poly) {
         int count = 0;
 
         for (int i = 0; i < poly.lines.Size (); i++) {
@@ -286,12 +286,12 @@ extend class S7_Math {
     }
 }
 
-class S7_Polygon 
+class MC_S7_Polygon 
 {
-    Array<S7_Line> lines;
+    Array<MC_S7_Line> lines;
 }
 
-class S7_Line
+class MC_S7_Line
 {
     Vector2 v1, v2;
 }

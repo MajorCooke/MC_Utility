@@ -16,7 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-extend class S7_Projectile {
+extend class MC_S7_Projectile {
     void HandleMovement () {
         spawnedTrail = false;
 
@@ -26,7 +26,7 @@ extend class S7_Projectile {
         if (vel ~== (0, 0, 0) && pos.Z ~== floorz)
             return;
 
-        if (!tr) { tr = new ('S7_Projectile_Trace'); tr.sourceActor = self; }
+        if (!tr) { tr = new ('MC_S7_Projectile_Trace'); tr.sourceActor = self; }
 
         tr.actorsToIgnore.Clear ();
         tr.actorsRipped.Clear ();
@@ -109,7 +109,7 @@ extend class S7_Projectile {
 
                 loopBreaker++;
                 if (loopBreaker >= 4096) { // Uh oh.
-                //    Console.PrintF ("\cgError: Broke an infinite loop in S7_Projectile: %s", GetClassName());
+                //    Console.PrintF ("\cgError: Broke an infinite loop in MC_S7_Projectile: %s", GetClassName());
                     vel = (0, 0, 0);
                     Destroy ();
                     return;
@@ -148,7 +148,7 @@ extend class S7_Projectile {
                 if (bMissile) 
 				{
                     A_Stop ();
-                    S7_ExplodeMissile (null, null, didHitSky);
+                    MC_S7_ExplodeMissile (null, null, didHitSky);
                 }
             }
         }

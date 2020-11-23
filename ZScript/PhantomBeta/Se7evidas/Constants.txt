@@ -17,21 +17,21 @@
 */
 
 // Delayed spawns
-enum S7_DelayedSpawns {
-    S7_DelaySpawns_Off = 0,
-    S7_DelaySpawns_MapStart = 1,
-    S7_DelaySpawns_All = 2,
+enum MC_S7_DelayedSpawns {
+    MC_S7_DelaySpawns_Off = 0,
+    MC_S7_DelaySpawns_MapStart = 1,
+    MC_S7_DelaySpawns_All = 2,
 }
 
 // Key renames
-enum S7_GZDoomButtons {
-    S7_BT_ChangeFireMode = BT_User3,
+enum MC_S7_GZDoomButtons {
+    MC_S7_BT_ChangeFireMode = BT_User3,
 }
 
 // Debugging constants
-enum S7_DebuggingConstants {
+enum MC_S7_DebuggingConstants {
     // Monster AI bitfield
-    S7_Dbg_MAI_Searching = 1 << 0,
+    MC_S7_Dbg_MAI_Searching = 1 << 0,
 };
 
 // Misc

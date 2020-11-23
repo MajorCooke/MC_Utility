@@ -17,12 +17,12 @@
 */
 
 /** Implements a fast RNG **/
-class S7_FastRNG {
+class MC_S7_FastRNG {
     private bool initialized;
     int seed;
 
-    static S7_FastRNG CreateWithSeed (int seed) {
-        let ret = new ('S7_FastRNG');
+    static MC_S7_FastRNG CreateWithSeed (int seed) {
+        let ret = new ('MC_S7_FastRNG');
 
         ret.initialized = true;
         ret.seed = seed;
@@ -30,8 +30,8 @@ class S7_FastRNG {
         return ret;
     }
 
-    static S7_FastRNG Create () {
-        int seed = level.totaltime ^ random [S7_FastRNGSeed] (1, int.max - 1);
+    static MC_S7_FastRNG Create () {
+        int seed = level.totaltime ^ random [MC_S7_FastRNGSeed] (1, int.max - 1);
 
         // Hash function from https://stackoverflow.com/a/12996028
         seed = ((seed >>> 16) ^ seed) * 0x45d9f3b;
@@ -41,9 +41,9 @@ class S7_FastRNG {
         return CreateWithSeed (seed);
     }
 	
-	S7_FastRNG Refresh()
+	MC_S7_FastRNG Refresh()
 	{
-		return S7_FastRNG.Create();
+		return MC_S7_FastRNG.Create();
 	}
 
     void Hash () {
@@ -57,7 +57,7 @@ class S7_FastRNG {
 
     int GetInt (int min, int max) {
         if (!initialized)
-            ThrowAbortException ("S7_FastRNG: RNG must be created with S7_FastRNG.Create!");
+            ThrowAbortException ("MC_S7_FastRNG: RNG must be created with MC_S7_FastRNG.Create!");
 
         Hash ();
 
@@ -72,7 +72,7 @@ class S7_FastRNG {
 
     double GetFloat (double min, double max) {
         if (!initialized)
-            ThrowAbortException ("S7_FastRNG: RNG must be created with S7_FastRNG.Create!");
+            ThrowAbortException ("MC_S7_FastRNG: RNG must be created with MC_S7_FastRNG.Create!");
 
         Hash ();
         double frandom = double (seed & 0x7FFFFFFF) / double (int.max);

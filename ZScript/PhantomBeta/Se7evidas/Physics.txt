@@ -16,7 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-extend class S7_Math {
+extend class MC_S7_Math {
     /* Summary:
     **  Simulates a damped spring.
     **

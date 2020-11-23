@@ -16,7 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-extend class S7_Projectile {
+extend class MC_S7_Projectile {
     virtual Actor StepEffects (Vector3 initialPos, Vector3 stepDiff, Vector3 realVel) {
         Class<Actor> trail = MissileName;
 
@@ -90,8 +90,8 @@ extend class S7_Projectile {
                 count = 8;
                 while (abs (stepSize.X) > interval * count || abs (stepSize.Y) > interval * count) {
                     if (count == double.infinity || count == -double.infinity) {
-                        //if (S7_DebugMode)
-                            //Console.Printf ("S7_Projectile.SpawnEffects: count overflowed");
+                        //if (MC_S7_DebugMode)
+                            //Console.Printf ("MC_S7_Projectile.SpawnEffects: count overflowed");
 
                         return;
                     }

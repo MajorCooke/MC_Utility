@@ -16,7 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-extend class S7_Projectile {
+extend class MC_S7_Projectile {
     bool CheckSkyLine (Vector3 curPos, Line l) {
         if (!l)
             return false;
@@ -56,13 +56,13 @@ extend class S7_Projectile {
 
         TextureID hitPlaneTex;
 
-        if (BlockingType == S7_BLOCK_Floor && BlockingFloor)
+        if (BlockingType == MC_S7_BLOCK_Floor && BlockingFloor)
             hitPlaneTex = BlockingFloor.GetTexture (Sector.Floor);
-        if (BlockingType == S7_BLOCK_Ceiling && BlockingCeiling)
+        if (BlockingType == MC_S7_BLOCK_Ceiling && BlockingCeiling)
             hitPlaneTex = BlockingCeiling.GetTexture (Sector.Ceiling);
-        if (BlockingType == S7_BLOCK_3DFloor_Floor && BlockingFFloor)
+        if (BlockingType == MC_S7_BLOCK_3DFloor_Floor && BlockingFFloor)
             hitPlaneTex = BlockingFFloor.Get3DFloor ().GetTexture (Sector.Floor);
-        if (BlockingType == S7_BLOCK_3DFloor_Ceiling && BlockingFFloor)
+        if (BlockingType == MC_S7_BLOCK_3DFloor_Ceiling && BlockingFFloor)
             hitPlaneTex = BlockingFFloor.Get3DFloor ().GetTexture (Sector.Ceiling);
 
         if (hitPlaneTex == skyflatnum)
@@ -82,23 +82,23 @@ extend class S7_Projectile {
         [ ceilHeight,  ceilSec,  ceilFFloor] = sec.NextHighestCeilingAt (checkPos.X, checkPos.Y, checkPos.Z, checkPos.Z + height);
 
         if (floorFFloor && checkPos.Z <= floorHeight) {
-            BlockingType = S7_BLOCK_3DFloor_Floor;
+            BlockingType = MC_S7_BLOCK_3DFloor_Floor;
 
             BlockingFloor = floorFFloor.model;
             Blocking3DFloor = floorFFloor.model;
-            BlockingFFloor = S7_3DFloorPointer.FromF3DFloor (floorFFloor);
+            BlockingFFloor = MC_S7_3DFloorPointer.FromF3DFloor (floorFFloor);
         } else if (ceilFFloor && (checkPos.Z + height) >= ceilHeight) {
-            BlockingType = S7_BLOCK_3DFloor_Ceiling;
+            BlockingType = MC_S7_BLOCK_3DFloor_Ceiling;
 
             BlockingCeiling = ceilFFloor.model;
             Blocking3DFloor = ceilFFloor.model;
-            BlockingFFloor = S7_3DFloorPointer.FromF3DFloor (ceilFFloor);
+            BlockingFFloor = MC_S7_3DFloorPointer.FromF3DFloor (ceilFFloor);
         } else if (checkPos.Z <= floorHeight) {
-            BlockingType = S7_BLOCK_Floor;
+            BlockingType = MC_S7_BLOCK_Floor;
 
             BlockingFloor = floorSec;
         } else if ((checkPos.Z + height) >= ceilHeight) {
-            BlockingType = S7_BLOCK_Ceiling;
+            BlockingType = MC_S7_BLOCK_Ceiling;
 
             BlockingCeiling = ceilSec;
         }
@@ -113,7 +113,7 @@ extend class S7_Projectile {
         BlockingFFloor = null;
         BlockingFloor = null;
         BlockingCeiling = null;
-        BlockingType = S7_BLOCK_None;
+        BlockingType = MC_S7_BLOCK_None;
 
         double hitDist = level.Vec3Diff (startPos, tr.Results.HitPos).Length ();
         if (hitDist > abs (oldVel.Length ()) + radius) {
@@ -132,7 +132,7 @@ extend class S7_Projectile {
             }
 
             hitSky = true;
-            S7_ExplodeMissile (null, null, true);
+            MC_S7_ExplodeMissile (null, null, true);
 
             return 1;
         }*/
@@ -167,20 +167,20 @@ extend class S7_Projectile {
             SetOrigin (hitPos, interpFastProj);
 
             if (BlockingMobj)
-                BlockingType = S7_BLOCK_Actor;
+                BlockingType = MC_S7_BLOCK_Actor;
             else if (BlockingLine) {
-                BlockingType = S7_BLOCK_Line;
+                BlockingType = MC_S7_BLOCK_Line;
 
                 if (tr.Results.HitType == TRACE_HitWall && tr.Results.Tier == TIER_FFloor && BlockingLine == tr.Results.HitLine) {
-                    BlockingFFloor = S7_3DFloorPointer.FromF3DFloor (tr.Results.ffloor);
-                    BlockingLineTier = S7_BLOCK_Tier_FFloor;
+                    BlockingFFloor = MC_S7_3DFloorPointer.FromF3DFloor (tr.Results.ffloor);
+                    BlockingLineTier = MC_S7_BLOCK_Tier_FFloor;
                 } else if (!(BlockingLine.flags & Line.ML_TwoSided) || !BlockingLine.sidedef [Line.Back])
-                    BlockingLineTier = S7_BLOCK_Tier_Middle;
+                    BlockingLineTier = MC_S7_BLOCK_Tier_Middle;
                 else {
                     Sector frontSec = BlockingLine.sidedef [Line.Front].sector;
                     Sector backSec = BlockingLine.sidedef [Line.Back].sector;
 
-                    if (S7_Math.PointOnLineSidePrecise (pos.X, pos.Y, BlockingLine) == 1) {
+                    if (MC_S7_Math.PointOnLineSidePrecise (pos.X, pos.Y, BlockingLine) == 1) {
                         let tmp = frontSec;
                         frontSec = backSec;
                         backSec = frontSec;
@@ -190,11 +190,11 @@ extend class S7_Projectile {
                     bool belowTop = ((pos.Z + height) < backSec.ceilingPlane.ZatPoint (hitPos.XY));
 
                     if (aboveBottom && belowTop)
-                        BlockingLineTier = S7_BLOCK_Tier_Middle;
+                        BlockingLineTier = MC_S7_BLOCK_Tier_Middle;
                     else if (!aboveBottom)
-                        BlockingLineTier = S7_BLOCK_Tier_Bottom;
+                        BlockingLineTier = MC_S7_BLOCK_Tier_Bottom;
                     else if (!belowTop)
-                        BlockingLineTier = S7_BLOCK_Tier_Top;
+                        BlockingLineTier = MC_S7_BLOCK_Tier_Top;
                 }
             } else
                 CheckBlockingPlanes (pos);
@@ -207,7 +207,7 @@ extend class S7_Projectile {
             }
 
             A_Stop ();
-            S7_ExplodeMissile (BlockingLine, BlockingMobj, (!BlockingLine && !BlockingMobj) ? didHitSky : false);
+            MC_S7_ExplodeMissile (BlockingLine, BlockingMobj, (!BlockingLine && !BlockingMobj) ? didHitSky : false);
 
             return 1;
         } else if (tr.Results.HitType == TRACE_HitActor && tr.Results.HitActor) {
@@ -218,7 +218,7 @@ extend class S7_Projectile {
                 tr.actorsRipped.Push (tr.Results.HitActor);
         } else if (tr.Results.HitType == TRACE_HitWall && tr.Results.HitLine) {
             let hl = tr.Results.HitLine;
-            int oldSide = S7_Math.PointOnLineSidePrecise (oldPos.X, oldPos.Y, hl);
+            int oldSide = MC_S7_Math.PointOnLineSidePrecise (oldPos.X, oldPos.Y, hl);
 
             int activationType = -1;
 
@@ -238,10 +238,10 @@ extend class S7_Projectile {
             [floorHeight, ceilHeight] = CheckBlockingPlanes (hitPos);
 
             bool hitPlane = (
-                BlockingType == S7_BLOCK_Floor ||
-                BlockingType == S7_BLOCK_Ceiling ||
-                BlockingType == S7_BLOCK_3DFloor_Floor ||
-                BlockingType == S7_BLOCK_3DFloor_Ceiling
+                BlockingType == MC_S7_BLOCK_Floor ||
+                BlockingType == MC_S7_BLOCK_Ceiling ||
+                BlockingType == MC_S7_BLOCK_3DFloor_Floor ||
+                BlockingType == MC_S7_BLOCK_3DFloor_Ceiling
             );
 
             if (hitPlane) {
@@ -249,7 +249,7 @@ extend class S7_Projectile {
 
                 bool didHitSky = CheckSkyHit (pos, null, true);
 
-                if (BlockingType == S7_BLOCK_Floor || BlockingType == S7_BLOCK_3DFloor_Floor) {
+                if (BlockingType == MC_S7_BLOCK_Floor || BlockingType == MC_S7_BLOCK_3DFloor_Floor) {
                     HitFloor ();
                     SetZ (floorHeight);
                 } else
@@ -262,7 +262,7 @@ extend class S7_Projectile {
 
                 if (bMissile) {
                     A_Stop ();
-                    S7_ExplodeMissile (null, null, didHitSky);
+                    MC_S7_ExplodeMissile (null, null, didHitSky);
                 }
 
                 return 1;

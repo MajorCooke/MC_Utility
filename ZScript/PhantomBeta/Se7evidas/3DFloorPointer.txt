@@ -16,7 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-class S7_3DFloorPointer play {
+class MC_S7_3DFloorPointer play {
     Sector ownerSector;
     int ffloorIndex;
 
@@ -24,14 +24,14 @@ class S7_3DFloorPointer play {
         return ownerSector.Get3DFloor (ffloorIndex);
     }
 
-    static S7_3DFloorPointer FromF3DFloor (F3DFloor ffloor) {
+    static MC_S7_3DFloorPointer FromF3DFloor (F3DFloor ffloor) {
         let owner = ffloor.target;
 
         int ffloorCount = owner.Get3DFloorCount ();
         for (int i = 0; i < ffloorCount; i++) {
             let cur3DFloor = owner.Get3DFloor (i);
             if (cur3DFloor == ffloor) {
-                let ptr = new ('S7_3DFloorPointer');
+                let ptr = new ('MC_S7_3DFloorPointer');
 
                 ptr.ownerSector = owner;
                 ptr.ffloorIndex = i;
@@ -40,7 +40,7 @@ class S7_3DFloorPointer play {
             }
         }
 
-        ThrowAbortException ("Error in S7_3DFloorPointer.FromF3DFloor: Could not find 3D floor???");
+        ThrowAbortException ("Error in MC_S7_3DFloorPointer.FromF3DFloor: Could not find 3D floor???");
         return null;
     }
 }

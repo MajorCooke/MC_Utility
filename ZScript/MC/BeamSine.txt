@@ -342,6 +342,9 @@ Class MCBeamFlow : Actor
 			First.MoveBeams();
 	}
 	
+	//--------------------------------------------------------------------------
+	// Performs the sine wave motion.
+	//--------------------------------------------------------------------------
 	void MoveBeams()
 	{
 		// Reduce the effect for the first and second beams.
@@ -366,9 +369,8 @@ Class MCBeamFlow : Actor
 		else Percent = 1.0; // In the middle.
 		
 		if (Parent)	
-		{
 			SineTheta = Parent.SineTheta;
-		}
+		
 		Vector3 SineOffSpeed = (
 				SineOffset.X * SineSpeed.X,
 				SineOffset.Y * SineSpeed.Y,
@@ -479,8 +481,7 @@ Class MCBeamFlow : Actor
 			return;
 		}
 		v = (v + val) % mod;
-		if (v < 0)
-			while (v < 0) { v += mod;	}
+		while (v < 0)	v += mod;
 	}
 	
 	private void AddModVec(out Vector3 v, Vector3 val, double mod)
@@ -491,25 +492,14 @@ Class MCBeamFlow : Actor
 			return;
 		}
 		
-		v.x = (v.x + val.x) % mod;
-		v.y = (v.y + val.y) % mod;
-		v.z = (v.z + val.z) % mod;
+		v = v + val;
+		v.x %= mod;
+		v.y %= mod;
+		v.z %= mod;
 		
-		if (v.x < 0 || v.y < 0 || v.z < 0)
-		{
-			while (v.x < 0 || v.y < 0 || v.z < 0)
-			{
-				v += (mod, mod, mod);
-				/*
-				v.x += mod;
-				v.y += mod;
-				v.z += mod;
-				*/
-			}
-			v.x %= mod;
-			v.y %= mod;
-			v.z %= mod;
-		}
+		while (v.x < 0)	v.x += mod;
+		while (v.y < 0)	v.y += mod;
+		while (v.z < 0)	v.z += mod;
 	}
 	
 	States

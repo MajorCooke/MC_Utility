@@ -1,5 +1,35 @@
 Class MC_Functions play
 {
+	//x = (((x - x_min) % (x_max - x_min)) + (x_max - x_min)) % (x_max - x_min) + x_min;
+	/*
+	static void ModuloV3(out Vector3 v, double mod)
+	{
+		if (mod ~== 0.0)
+		{
+			ThrowAbortException("Modulus must not be zero!");
+			return;
+		}
+		
+		v.x %= mod;
+		v.y %= mod;
+		v.z %= mod;
+		
+		if (v.x < 0)
+		{
+			double sign = (v.x > 0) ? 1 : -1;
+			double a = 
+		}
+	}*/
+	
+	int invMod2(int dividend, int divisor, int min)
+	{
+		int m = min/divisor * divisor; // must be in this order
+		int output = m + dividend%divisor;
+		if(output < min)
+			output += divisor;
+		return output;
+	}
+
 	/*--------------------------------------------------------------------------
 	GetFalloff
 	
@@ -279,7 +309,7 @@ Class MC_Functions play
 			double thrs = double(thr) * 0.0001;
 			
 			double falloff = MC_Functions.GetDamageFalloff(bomb, mo, double(radius), double(full), bomb.bOLDRADIUSDMG, (flags & XF_NOTMISSILE));
-			dmg = int(round(damage * mo.RadiusDamageFactor * falloff * thrs));
+			dmg = int(round(dmg * mo.RadiusDamageFactor * falloff));
 			
 			// Bear in mind the division by mass GREATLY dilutes the thrusting
 			// power, hence why if thrust < 0, it'll multiply by 30.
@@ -323,7 +353,7 @@ Class MC_Functions play
 			
 			if (res > 0 || bomb.bFORCEZERORADIUSDMG)
 			{
-				res = mo.DamageMobj(bomb, source, res, DamageType, DMG_EXPLOSION|DMG_NO_FACTOR|DMG_NO_PROTECT|DMG_THRUSTLESS);
+				res = mo.DamageMobj(bomb, source, res, DamageType, DMG_EXPLOSION|DMG_THRUSTLESS);
 				if (res > 0)
 					count++;
 			}

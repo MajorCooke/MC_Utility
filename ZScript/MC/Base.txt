@@ -106,7 +106,7 @@ Class MCHandler : EventHandler
 				if (mo && mo.bKILLED)
 				{
 					if (DeadMonsters.Find(mo) >= DeadMonsters.Size())
-						DeadMonsters.Push(mo);
+						DeadMonsters.Inject(mo);
 					Monsters.Actors[i] = null;					
 				}
 			}
@@ -116,7 +116,7 @@ Class MCHandler : EventHandler
 				Actor mo = DeadMonsters.Actors[i];
 				if (mo && !mo.bKILLED)
 				{
-					Monsters.Push(mo);
+					Monsters.Inject(mo);
 					DeadMonsters.Actors[i] = null;
 				}
 			}
@@ -176,6 +176,7 @@ Class MCHandler : EventHandler
 				}
 			}
 			Console.Printf("%d monsters destroyed.", count);
+			Monsters.Clear();
 		}
 		else if (plr.health > 0)
 		{
@@ -232,20 +233,20 @@ Class MCHandler : EventHandler
 	{
 		Actor mo = e.thing;
 		
-		if (!mo || mo.bNOINTERACTION || mo.bNOSECTOR || IsPlayerPawn(mo) || 
-			mo is "RandomSpawner")
+		if (!mo || mo.bNOINTERACTION || mo.bNOSECTOR || mo is "RandomSpawner" || 
+			IsPlayerPawn(mo))
 			return;
 		
 		if (mo.bMISSILE && mo.bSEEKERMISSILE)
 		{
-			Missiles.Push(mo);	
+			Missiles.Inject(mo);	
 		}
-		else if ((mo.bISMONSTER || mo.bSHOOTABLE))
+		else if (mo.bISMONSTER || mo.bSHOOTABLE || mo.bBOSS)
 		{
 			if (mo.health > 0)
-				Monsters.Push(mo);
+				Monsters.Inject(mo);
 			else
-				DeadMonsters.Push(mo);
+				DeadMonsters.Inject(mo);
 		}
 	}
 	
@@ -255,42 +256,23 @@ Class MCHandler : EventHandler
 	{
 		// Add the monster to the list if not already present.
 		Actor mo = e.Thing;
-		if (IsPlayerPawn(mo))	return;
+		if (!mo || bDESTROYED || IsPlayerPawn(e.Thing))	return;
 		
-		int i = DeadMonsters.Find(mo);
-		if (i < DeadMonsters.Size())
-			DeadMonsters.Actors[i] = null;
-		Monsters.Push(mo);
+		DeadMonsters.Delete(mo);
+		Monsters.Inject(mo);
 	}
 	
 	//--------------------------------------------------------------------------
 	//--------------------------------------------------------------------------
 	override void WorldThingDied(WorldEvent e)
 	{
-		if (bDESTROYED)	return;
 		Actor mo = e.Thing;
-		
-		if (IsPlayerPawn(mo))
-			return;
+		if (!mo || bDESTROYED || IsPlayerPawn(e.Thing))	return;
 		
 		// Allocate them over to the DeadMonsters array and remove them from 
 		// the living.
-		if (DeadMonsters.Find(mo) >= DeadMonsters.Size())
-			DeadMonsters.Push(mo);
-			
-		int i = Monsters.Find(mo);
-		if (i < Monsters.Size())
-			Monsters.Actors[i] = null;
-		
-		
-		if (mo.CountInv("MinionToken"))
-		{
-			let victor = mo.target;
-			if (victor && !IsPlayerPawn(victor) && mo.master)
-			{
-				victor.lastenemy = mo.master;
-			}
-		}
+		DeadMonsters.Inject(mo);
+		Monsters.Delete(mo);
 	}
 	
 	
@@ -407,7 +389,7 @@ Class AArray
 	
 	bool CheckActorType(Actor mo, bool strict = false) const
 	{
-		return (mo && (ClassType == null || 
+		return (mo && (!ClassType || 
 			(mo.GetClass() == ClassType || (!strict && mo is ClassType))));
 	}
 	
@@ -418,13 +400,15 @@ Class AArray
 	// Make sure it exists and isn't restricted from insertion.
 	// If strict, only allow the specified actor class in.
 	// Else, allow inheritance.
-	void Push(Actor mo, bool strict = false)
+	bool Push(Actor mo, bool strict = false)
 	{
-		if (CheckActorType(mo, strict))
-			Actors.Push(mo);
+		bool check = CheckActorType(mo, strict);
+		if (check)	Actors.Push(mo);
+		
+		return check;
 	}
 	
-	bool Inject(Actor mo, bool strict = false)
+	bool Inject(Actor mo, bool strict = false, bool dopush = true)
 	{
 		if (!CheckActorType(mo, strict))	
 			return false;
@@ -440,7 +424,7 @@ Class AArray
 				return true;
 			}
 		}
-		return false;
+		return (dopush) ? Push(mo, strict) : false;
 	}
 	
 	// Removes the actor and 'schedules' shrinking via a null.
@@ -472,7 +456,7 @@ Class AArray
 	{
 		int size = Actors.Size();
 		// Array empty.
-		if (size < 1)	return size;
+		if (size < 1)	return 0;
 			
 		Array<Actor> temp; temp.Clear();
 		for (int i = 0; i < size; i++)
@@ -598,14 +582,16 @@ Class CAArray
 	// Make sure it exists and isn't restricted from insertion.
 	// If strict, only allow the specified actor class in.
 	// Else, allow inheritance.
-	void Push(Class<Actor> mo, bool strict = false)
+	bool Push(Class<Actor> mo, bool strict = false)
 	{
-		if (CheckClassType(mo, strict))
-			Classes.Push(mo);
+		bool check = CheckClassType(mo, strict);
+		if (check)	Classes.Push(mo);
+		
+		return check;
 	}
 	
 	// Finds a null and injects mo into its spot.
-	bool Inject(Class<Actor> mo, bool strict = false)
+	bool Inject(Class<Actor> mo, bool strict = false, bool dopush = true)
 	{
 		if (!CheckClassType(mo, strict))
 			return false;
@@ -621,7 +607,7 @@ Class CAArray
 				return true; // Found a null.
 			}
 		}
-		return false;
+		return (dopush) ? Push(mo, strict) : false;
 	}
 	
 	// Removes the actor and 'schedules' shrinking via a null.
@@ -653,7 +639,7 @@ Class CAArray
 	{
 		int size = Classes.Size();
 		// Array empty.
-		if (size < 1)	return size;
+		if (size < 1)	return 0;
 			
 		Array<Class<Actor> > temp; temp.Clear();
 		for (int i = 0; i < size; i++)

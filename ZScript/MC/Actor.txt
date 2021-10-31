@@ -1,7 +1,7 @@
 Class MC_Functions play
 {
 	//x = (((x - x_min) % (x_max - x_min)) + (x_max - x_min)) % (x_max - x_min) + x_min;
-	/*
+	
 	static void ModuloV3(out Vector3 v, double mod)
 	{
 		if (mod ~== 0.0)
@@ -14,18 +14,19 @@ Class MC_Functions play
 		v.y %= mod;
 		v.z %= mod;
 		
-		if (v.x < 0)
+		if (v.x < 0.0 || v.y < 0.0 || v.z < 0.0)
 		{
-			double sign = (v.x > 0) ? 1 : -1;
-			double a = 
+			while (v.x < 0.0)	v.x += mod;
+			while (v.y < 0.0)	v.y += mod;
+			while (v.z < 0.0)	v.z += mod;
 		}
-	}*/
+	}
 	
 	int invMod2(int dividend, int divisor, int min)
 	{
 		int m = min/divisor * divisor; // must be in this order
-		int output = m + dividend%divisor;
-		if(output < min)
+		int output = m + dividend % divisor;
+		while (output < min)
 			output += divisor;
 		return output;
 	}
@@ -560,24 +561,6 @@ Class MC_Functions play
 					else				damage *= sv_damagefactorfriendly;
 				}
 				
-				if (inf)
-				{
-					if (inf.bSPECTRAL)
-					{
-						if (player)
-							if (!deathmatch && inf.FriendPlayer > 0)
-								return -1;
-						else if (tar.bSPECTRAL)
-							if (inf.FriendPlayer == 0 && tar.IsHostile(inf))
-								return -1;
-					}
-					
-					// Do/TakeSpecialDamage can cause some undesirable effects, 
-					// such as triggering DamageMobj in some base classes. Since
-					// my mods aren't designed to really handle them at any rate,
-					// we won't be using it.
-				//	inf->DoSpecialDamage(tar, damage, mod);
-				}
 				if (damage < 0)
 					return -1;
 					
